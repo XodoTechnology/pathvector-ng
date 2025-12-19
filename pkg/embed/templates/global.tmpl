@@ -157,14 +157,13 @@ protocol static null6 {
 }
 
 function set_blackhole() {
-  if (net.type = NET_IP4) then {
-    bgp_next_hop = 192.0.2.1;
-    print "Added null route for ", net;
-  }
-  if (net.type = NET_IP6) then {
-    bgp_next_hop = 100::1;
-    print "Added null route for ", net;
-  }
+  if net.type = NET_IP4 then bgp_next_hop = 192.0.2.1;
+  if net.type = NET_IP6 then bgp_next_hop = 100::1;
+  dest = RTD_BLACKHOLE;
+
+  accept;
+
+  print "Added null route for ", net;
 }
 
 function is_blackhole() {
@@ -172,7 +171,10 @@ function is_blackhole() {
 }
 
 function process_blackholes() {
-  if (is_blackhole()) then {
+  if ((ASN,666) ~ bgp_community || (65535,666) ~ bgp_community || (ASN,1,666) ~ bgp_large_community) then {
+    bgp_community.add((ASN,666));
+    bgp_community.add((65535,666));
+
     set_blackhole();
   }
 }
@@ -297,11 +299,11 @@ function reject_out_of_bounds_routes() {
   {{ if .AcceptDefault -}}if (net.len = 0) then return 0;{{ end }}
 
   if (net.type = NET_IP4) then {
-    if (net.len > 24 || net.len < 8) then _reject("out of bounds (24 > len > 8)");
+    if (net.len > 32 || net.len < 8) then _reject("out of bounds (32 > len > 8)");
   }
 
   if (net.type = NET_IP6) then {
-    if (net.len > 48 || net.len < 12) then _reject("out of bounds (48 > len > 12)");
+    if (net.len > 128 || net.len < 12) then _reject("out of bounds (128 > len > 12)");
   }
 }
 
