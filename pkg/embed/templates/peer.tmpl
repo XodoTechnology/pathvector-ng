@@ -86,37 +86,37 @@ protocol bgp {{ UniqueProtocolName $peer.ProtocolName $peerName $af $peer.ASN $p
         {{ if BoolDeref $peer.AddPathRx }}add paths rx;{{ end }}
         {{ if BoolDeref $peer.DisableAfterError }}disable after error on;{{ end }}
         import filter {
+
             {{ if $global.NoAccept }}reject; # no-accept: true{{ end }}
             {{ if (not (BoolDeref $peer.Import)) }}reject; # import: false{{ end }}
 
             {{ StrDeref $peer.PreImportFilter }}
 
-            {{ if BoolDeref $peer.FilterBogonRoutes }}reject_bogon_routes();{{ end }}
-            {{ if BoolDeref $peer.FilterBogonASNs }}reject_bogon_asns();{{ end }}
-            {{ if BoolDeref $peer.FilterPrefixLength }}{{ if BoolDeref $peer.AllowBlackholeCommunity }}if !is_blackhole() then {{ end }}reject_out_of_bounds_routes();{{ end }}
-            {{ if BoolDeref $peer.FilterRPKI }}reject_rpki_invalid();{{ end }}
-            {{ if BoolDeref $peer.StrictRPKI }}force_rpki_strict();{{ end }}
-            {{ if BoolDeref $peer.FilterNeverViaRouteServers }}reject_never_via_route_servers();{{ end }}
-            {{ if BoolDeref $peer.EnforceFirstAS }}enforce_first_as({{ $peer.ASN }});{{ end }}
-            {{ if BoolDeref $peer.EnforcePeerNexthop }}enforce_peer_nexthop({{ $neighborNoIface }});{{ end }}
-            {{ if BoolDeref $peer.FilterTransitASNs }}reject_transit_paths();{{ end }}
-            {{ if or (not (Empty $peer.PrefixSet4)) (not (Empty $peer.PrefixSet6)) }}if !(net ~ AS{{ $peer.ASN }}_{{ $peer.ProtocolName }}_PFX_v{{ $af }}) then { _reject("not in prefix set"); }{{ end }}
-            {{ if BoolDeref $peer.FilterASSet }}if !(bgp_path.last ~ AS{{ $peer.ASN }}_{{ $peer.ProtocolName }}_AS_SET_MEMBERS) then { _reject("not in AS set"); }{{ end }}
-            {{ if BoolDeref $peer.FilterBlocklist }}reject_blocklist();{{ end }}
-
-            {{/* Transit Locking */}}
-            {{ if StrSliceDeref $peer.TransitLock }}
-            if !((bgp_path ~ [= {{ $peer.ASN }}+ =]) || {{$transits := len (StrSliceDeref $peer.TransitLock)}}{{ range $i, $provider := StrSliceDeref $peer.TransitLock }}bgp_path ~ [= * {{ $provider }} {{ $peer.ASN }} * =]{{ if not (Last $i $transits) }} || {{end}}{{ end }}) then {
-                _reject("not in transit lock list");
-            }
+            {{ if not (IntDeref $peer.DefaultLocalPref) }}
+            {{ if BoolDeref $peer.SetLocalPref }}bgp_local_pref = {{ $peer.LocalPref }}; # pathvector:localpref{{ end }}
             {{ end }}
 
-            {{/* ASPA */}}
-            {{ if (and (BoolDeref $peer.FilterASPA) (Uint32SliceMapDeref $global.AuthorizedProviders) (U32MapContains $peer.ASN $global.AuthorizedProviders)) }}
-            {{ ASPAFilter $peer.ASN $global.AuthorizedProviders }}
+            {{ if IntDeref $peer.LocalPref4 }}if (net.type = NET_IP4) then { bgp_local_pref = {{ $peer.LocalPref4 }}; }{{ end }}
+            {{ if IntDeref $peer.LocalPref6 }}if (net.type = NET_IP6) then { bgp_local_pref = {{ $peer.LocalPref6 }}; }{{ end }}
+
+            {{ range $community, $pref := StringUint32MapDeref $peer.StandardCommunityPrefs }}
+            if (({{ $community }}) ~ bgp_community) then { bgp_local_pref = {{ $pref }}; }
+            {{ end }}
+            {{ range $community, $pref := StringUint32MapDeref $peer.LargeCommunityPrefs }}
+            if (({{ $community }}) ~ bgp_large_community) then { bgp_local_pref = {{ $pref }}; }
             {{ end }}
 
-            {{ StrDeref $peer.PostImportFilter }}
+            {{ range $asn, $pref := Uint32MapDeref $peer.ASPrefs }}
+            if ({{ $asn }} ~ bgp_path) then { bgp_local_pref = {{ $pref }}; }
+            {{ end }}
+            {{ $afASPrefs := $peer.ASPrefs4 }}{{ if eq $af "6" }}{{ $afASPrefs = $peer.ASPrefs6 }}{{ end }}
+            {{ range $asn, $pref := Uint32MapDeref $afASPrefs }}
+            if ({{ $asn }} ~ bgp_path) then { bgp_local_pref = {{ $pref }}; } # as-prefs{{ $af }}
+            {{ end }}
+            {{ $afPrefixPrefs := $peer.PrefixPrefs4 }}{{ if eq $af "6" }}{{ $afPrefixPrefs = $peer.PrefixPrefs6 }}{{ end }}
+            {{ range $prefix, $pref := StringUint32MapDeref $afPrefixPrefs }}
+            if (net ~ [ {{ $prefix }} ]) then { bgp_local_pref = {{ $pref }}; } # prefix-prefs
+            {{ end }}
 
             {{ if BoolDeref $peer.ForcePeerNexthop }}bgp_next_hop = {{ $neighborNoIface }};{{ end }}
 
@@ -142,36 +142,6 @@ protocol bgp {{ UniqueProtocolName $peer.ProtocolName $peerName $af $peer.ASN $p
             bgp_large_community.delete([({{ IntDeref $peer.RemoveAllCommunities }}, *, *)]);
             {{ end }}
 
-            {{ if not (IntDeref $peer.DefaultLocalPref) }}
-            {{ if BoolDeref $peer.SetLocalPref }}bgp_local_pref = {{ $peer.LocalPref }}; # pathvector:localpref{{ end }}
-            {{ end }}
-
-            {{ if IntDeref $peer.LocalPref4 }}if (net.type = NET_IP4) then { bgp_local_pref = {{ $peer.LocalPref4 }}; }{{ end }}
-            {{ if IntDeref $peer.LocalPref6 }}if (net.type = NET_IP6) then { bgp_local_pref = {{ $peer.LocalPref6 }}; }{{ end }}
-
-            {{/* Local pref precedence (last match wins): local-pref, local-pref4/6, community-prefs, as-prefs, as-prefs4/6, prefix-prefs */}}
-            {{ range $community, $pref := StringUint32MapDeref $peer.StandardCommunityPrefs }}
-            if (({{ $community }}) ~ bgp_community) then { bgp_local_pref = {{ $pref }}; }
-            {{ end }}
-            {{ range $community, $pref := StringUint32MapDeref $peer.LargeCommunityPrefs }}
-            if (({{ $community }}) ~ bgp_large_community) then { bgp_local_pref = {{ $pref }}; }
-            {{ end }}
-
-            {{ range $asn, $pref := Uint32MapDeref $peer.ASPrefs }}
-            if ({{ $asn }} ~ bgp_path) then { bgp_local_pref = {{ $pref }}; }
-            {{ end }}
-            {{ $afASPrefs := $peer.ASPrefs4 }}{{ if eq $af "6" }}{{ $afASPrefs = $peer.ASPrefs6 }}{{ end }}
-            {{ range $asn, $pref := Uint32MapDeref $afASPrefs }}
-            if ({{ $asn }} ~ bgp_path) then { bgp_local_pref = {{ $pref }}; } # as-prefs{{ $af }}
-            {{ end }}
-            {{ $afPrefixPrefs := $peer.PrefixPrefs4 }}{{ if eq $af "6" }}{{ $afPrefixPrefs = $peer.PrefixPrefs6 }}{{ end }}
-            {{ range $prefix, $pref := StringUint32MapDeref $afPrefixPrefs }}
-            if (net ~ [ {{ $prefix }} ]) then { bgp_local_pref = {{ $pref }}; } # prefix-prefs
-            {{ end }}
-
-            {{ if BoolDeref $peer.AllowBlackholeCommunity }}process_blackholes();{{ end }}
-            {{ if BoolDeref $peer.HonorGracefulShutdown }}honor_graceful_shutdown();{{ end }}
-
             {{ range $i, $community := StringSliceIter $peer.ImportStandardCommunities }}
             bgp_community.add(({{ $community }}));
             {{ end }}
@@ -186,13 +156,46 @@ protocol bgp {{ UniqueProtocolName $peer.ProtocolName $peerName $af $peer.ASN $p
             bgp_large_community.add(({{ $community }}));
             {{ end }}
 
+            {{ if BoolDeref $peer.FilterBogonRoutes }}reject_bogon_routes();{{ end }}
+            {{ if BoolDeref $peer.FilterBogonASNs }}reject_bogon_asns();{{ end }}
+            {{ if BoolDeref $peer.FilterPrefixLength }}{{ if BoolDeref $peer.AllowBlackholeCommunity }}if !is_blackhole() then {{ end }}reject_out_of_bounds_routes();{{ end }}
+            {{ if BoolDeref $peer.FilterNeverViaRouteServers }}reject_never_via_route_servers();{{ end }}
+            {{ if BoolDeref $peer.EnforceFirstAS }}enforce_first_as({{ $peer.ASN }});{{ end }}
+            {{ if BoolDeref $peer.EnforcePeerNexthop }}enforce_peer_nexthop({{ $neighborNoIface }});{{ end }}
+            {{ if BoolDeref $peer.FilterTransitASNs }}reject_transit_paths();{{ end }}
+            {{ if or (not (Empty $peer.PrefixSet4)) (not (Empty $peer.PrefixSet6)) }}if !(net ~ AS{{ $peer.ASN }}_{{ $peer.ProtocolName }}_PFX_v{{ $af }}) then { _reject("not in prefix set"); }{{ end }}
+            {{ if and (BoolDeref $peer.FilterASSet) (not (Empty $peer.ASSetMembers)) }}if !(bgp_path.last ~ AS{{ $peer.ASN }}_{{ $peer.ProtocolName }}_AS_SET_MEMBERS) then { _reject("not in AS set"); }{{ end }}
+            {{ if BoolDeref $peer.FilterBlocklist }}reject_blocklist();{{ end }}
+
+            {{/* Transit Locking */}}
+            {{ if StrSliceDeref $peer.TransitLock }}
+            if !((bgp_path ~ [= {{ $peer.ASN }}+ =]) || {{$transits := len (StrSliceDeref $peer.TransitLock)}}{{ range $i, $provider := StrSliceDeref $peer.TransitLock }}bgp_path ~ [= * {{ $provider }} {{ $peer.ASN }} * =]{{ if not (Last $i $transits) }} || {{end}}{{ end }}) then {
+                _reject("not in transit lock list");
+            }
+            {{ end }}
+
+            {{/* ASPA */}}
+            {{ if (and (BoolDeref $peer.FilterASPA) (Uint32SliceMapDeref $global.AuthorizedProviders) (U32MapContains $peer.ASN $global.AuthorizedProviders)) }}
+            {{ ASPAFilter $peer.ASN $global.AuthorizedProviders }}
+            {{ end }}
+
+            {{ StrDeref $peer.PostImportFilter }}
+
+            {{ if BoolDeref $peer.AllowBlackholeCommunity }}process_blackholes();{{ end }}
             {{ if BoolDeref $peer.BlackholeIn }}
             set_blackhole();
             {{ end }}
 
+            {{ if BoolDeref $peer.FilterRPKI }}reject_rpki_invalid();{{ end }}
+            {{ if BoolDeref $peer.StrictRPKI }}force_rpki_strict();{{ end }}
+
+            {{ if BoolDeref $peer.HonorGracefulShutdown }}honor_graceful_shutdown();{{ end }}
+
             {{ StrDeref $peer.PreImportAccept }}
+
             accept;
         };
+
 
         export filter {
             {{ if $global.NoAnnounce }}reject; # no-announce: true{{ end }}
