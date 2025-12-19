@@ -202,12 +202,12 @@ func UpdateWithCache(peerData *config.Peer, irrServer string, queryTimeout uint,
 		if bgpqArgs4 != "" {
 			bgpqArgs4 += " "
 		}
-		bgpqArgs4 += "-R 24"
+		bgpqArgs4 += "-R 32"
 
 		if bgpqArgs6 != "" {
 			bgpqArgs6 += " "
 		}
-		bgpqArgs6 += "-R 48"
+		bgpqArgs6 += "-R 128"
 	}
 
 	// The cache key covers everything that changes the query result, so cached data is never used for a different query
