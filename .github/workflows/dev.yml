@@ -39,12 +39,12 @@ jobs:
 
       - name: Refresh dev prerelease
         run: |
-          gh release delete dev --yes --cleanup-tag 2>/dev/null || true
-          gh release create dev --prerelease \
+          gh release delete dev-snapshot --yes --cleanup-tag 2>/dev/null || true
+          gh release create dev-snapshot --prerelease \
             --title "Development snapshot ($(git rev-parse --short HEAD))" \
             --notes-file distrib/snapshot-header.md \
             dist/*.tar.gz dist/*.deb dist/*.rpm dist/checksums.txt 2>/dev/null \
-            || gh release create dev --prerelease \
+            || gh release create dev-snapshot --prerelease \
             --title "Development snapshot ($(git rev-parse --short HEAD))" \
             --notes-file distrib/snapshot-header.md \
             dist/*.tar.gz dist/*.deb dist/*.rpm

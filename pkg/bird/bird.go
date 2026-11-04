@@ -106,6 +106,22 @@ func ReadClean(r io.Reader) {
 // versionRegex matches a BIRD version string such as "BIRD 2.14" or "BIRD v2.0.10"
 var versionRegex = regexp.MustCompile(`BIRD\s+v?(\d+(?:\.\d+)+)`)
 
+// Compiled once at package load rather than per call — these run inside the
+// per-protocol parse loops (status, metrics, generate).
+var (
+	spaceRegex              = regexp.MustCompile(`\s+`)
+	headTailWhitespaceRegex = regexp.MustCompile(`^[\s\p{Zs}]+|[\s\p{Zs}]+$`)
+	innerWhitespaceRegex    = regexp.MustCompile(`[\s\p{Zs}]{2,}`)
+	addressRegex            = regexp.MustCompile(`(.*)Neighbor address:(.*)`)
+	neighborASRegex         = regexp.MustCompile(`(.*)Neighbor AS:(.*)`)
+	localASRegex            = regexp.MustCompile(`(.*)Local AS:(.*)`)
+	neighborIDRegex         = regexp.MustCompile(`(.*)Neighbor ID:(.*)`)
+	routesRegex             = regexp.MustCompile(`(.*)Routes:(.*)`)
+	birdReadyRegex          = regexp.MustCompile(`BIRD.*ready.*`)
+	tableHeaderRegex        = regexp.MustCompile(`Name.*Info`)
+	ccRegex                 = regexp.MustCompile(`\d\d\d\d-\w?$`)
+)
+
 // UnknownVersion is returned as the BIRD version when it can't be determined
 const UnknownVersion = "unknown"
 
@@ -380,15 +396,12 @@ type ProtocolState struct {
 }
 
 func trimRepeatingSpace(s string) string {
-	space := regexp.MustCompile(`\s+`)
-	return space.ReplaceAllString(s, " ")
+	return spaceRegex.ReplaceAllString(s, " ")
 }
 
 // trimDupSpace trims duplicate whitespace
 func trimDupSpace(s string) string {
-	headTailWhitespace := regexp.MustCompile(`^[\s\p{Zs}]+|[\s\p{Zs}]+$`)
-	innerWhitespace := regexp.MustCompile(`[\s\p{Zs}]{2,}`)
-	return innerWhitespace.ReplaceAllString(headTailWhitespace.ReplaceAllString(s, ""), " ")
+	return innerWhitespaceRegex.ReplaceAllString(headTailWhitespaceRegex.ReplaceAllString(s, ""), " ")
 }
 
 func parseBGP(s string) (*BGPState, error) {
@@ -403,7 +416,6 @@ func parseBGP(s string) (*BGPState, error) {
 		return nil, nil
 	}
 
-	addressRegex := regexp.MustCompile(`(.*)Neighbor address:(.*)`)
 	address := trimRepeatingSpace(
 		trimDupSpace(
 			addressRegex.FindString(s),
@@ -411,7 +423,6 @@ func parseBGP(s string) (*BGPState, error) {
 	)
 	out.NeighborAddress = strings.Split(address, "Neighbor address: ")[1]
 
-	neighborASRegex := regexp.MustCompile(`(.*)Neighbor AS:(.*)`)
 	neighborAS := trimRepeatingSpace(
 		trimDupSpace(
 			neighborASRegex.FindString(s),
@@ -424,7 +435,6 @@ func parseBGP(s string) (*BGPState, error) {
 	}
 	out.NeighborAS = int(neighborASInt)
 
-	localASRegex := regexp.MustCompile(`(.*)Local AS:(.*)`)
 	localAS := trimRepeatingSpace(
 		trimDupSpace(
 			localASRegex.FindString(s),
@@ -437,7 +447,6 @@ func parseBGP(s string) (*BGPState, error) {
 	}
 	out.LocalAS = int(localASInt)
 
-	neighborIDRegex := regexp.MustCompile(`(.*)Neighbor ID:(.*)`)
 	neighborID := trimRepeatingSpace(
 		trimDupSpace(
 			neighborIDRegex.FindString(s),
@@ -459,7 +468,6 @@ func parseRoutes(s string) (*Routes, error) {
 		Preferred: -1,
 	}
 
-	routesRegex := regexp.MustCompile(`(.*)Routes:(.*)`)
 	routes := routesRegex.FindString(s)
 	routes = trimDupSpace(routes)
 	routes = trimRepeatingSpace(routes)
@@ -497,13 +505,10 @@ func ParseProtocol(p string) (*ProtocolState, error) {
 	p = noWhitespace(p)
 
 	// Remove lines that start with BIRD
-	birdRegex := regexp.MustCompile(`BIRD.*ready.*`)
-	p = birdRegex.ReplaceAllString(p, "")
-	tableHeaderRegex := regexp.MustCompile(`Name.*Info`)
+	p = birdReadyRegex.ReplaceAllString(p, "")
 	p = tableHeaderRegex.ReplaceAllString(p, "")
 
 	// Remove control characters
-	ccRegex := regexp.MustCompile(`\d\d\d\d-\w?$`)
 	p = ccRegex.ReplaceAllString(p, "")
 
 	// Remove leading and trailing newlines
