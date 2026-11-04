@@ -292,6 +292,8 @@ func writeLocalPref(
 	bird.Validate(birdBinary, birdDirectory)
 
 	if !noConfigure {
-		bird.Reconfigure(birdSocket)
+		if err := bird.Reconfigure(birdSocket); err != nil {
+			log.Warnf("[Optimizer] BIRD reconfigure failed: %s", err)
+		}
 	}
 }

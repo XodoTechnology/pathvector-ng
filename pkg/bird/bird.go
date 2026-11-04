@@ -293,6 +293,23 @@ func Validate(binary string, cacheDir string) {
 
 // MoveCacheAndReconfigure moves cached files to the production BIRD directory and reconfigures
 func MoveCacheAndReconfigure(birdDirectory string, cacheDirectory string, birdSocket string, noConfigure bool) {
+	// Snapshot the current live config so a rejected `configure` can be rolled
+	// back to the last-good state instead of leaving BIRD half-applied.
+	rollbackDir := path.Join(cacheDirectory, ".rollback")
+	_ = os.RemoveAll(rollbackDir)
+	if err := os.MkdirAll(rollbackDir, 0755); err != nil {
+		log.Warnf("Creating rollback dir (rollback disabled this run): %v", err)
+	} else {
+		for _, f := range []string{"AS*.conf", "bird.conf", "pathvector.yml"} {
+			matches, _ := filepath.Glob(path.Join(birdDirectory, f))
+			for _, m := range matches {
+				if err := util.CopyFile(m, path.Join(rollbackDir, filepath.Base(m))); err != nil {
+					log.Warnf("Rollback snapshot of %s failed: %v", m, err)
+				}
+			}
+		}
+	}
+
 	// Remove old configs
 	birdConfigFiles, err := filepath.Glob(path.Join(birdDirectory, "AS*.conf"))
 	if err != nil {
@@ -331,21 +348,43 @@ func MoveCacheAndReconfigure(birdDirectory string, cacheDirectory string, birdSo
 	}
 
 	if !noConfigure {
-		Reconfigure(birdSocket)
+		if err := Reconfigure(birdSocket); err != nil {
+			log.Errorf("BIRD rejected the new configuration: %s — rolling back to the last-good config", err)
+			for _, f := range []string{"AS*.conf", "bird.conf", "pathvector.yml"} {
+				matches, _ := filepath.Glob(path.Join(birdDirectory, f))
+				for _, m := range matches {
+					_ = os.Remove(m)
+				}
+				matches, _ = filepath.Glob(path.Join(rollbackDir, f))
+				for _, m := range matches {
+					if cerr := util.CopyFile(m, path.Join(birdDirectory, filepath.Base(m))); cerr != nil {
+						log.Errorf("Rollback restore of %s failed: %v", m, cerr)
+					}
+				}
+			}
+			if rerr := Reconfigure(birdSocket); rerr != nil {
+				log.Fatalf("Rollback configure also failed: %v", rerr)
+			}
+			log.Fatalf("Rolled back to the last-good configuration; fix the config and re-run generate (cause: %s)", err)
+		}
 	}
 }
 
 // Reconfigure tells BIRD to reload its configuration files
-func Reconfigure(birdSocket string) {
+func Reconfigure(birdSocket string) error {
 	log.Info("Reconfiguring BIRD")
 	resp, _, err := RunCommand("configure", birdSocket)
 	if err != nil {
-		log.Fatal(err)
+		return fmt.Errorf("reconfigure: %w", err)
+	}
+	if strings.Contains(resp, "syntax error") || strings.Contains(resp, "8002") {
+		return fmt.Errorf("BIRD configure error: %s", strings.TrimSpace(resp))
 	}
 	// Print bird output as multiple lines
 	for _, line := range strings.Split(strings.Trim(resp, "\n"), "\n") {
 		log.Printf("BIRD response (multiline): %s", line)
 	}
+	return nil
 }
 
 // Reformat takes a BIRD config file as a string and outputs a nicely formatted version as a string
