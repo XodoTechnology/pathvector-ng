@@ -95,7 +95,6 @@ requests. Those are addressed here, including (upstream issue numbers):
   as-prefs precedence over community-prefs (#198)
 * Plus the zappiehost improvements listed in [Provenance](#provenance)
 
-See [TODO.md](TODO.md) for the roadmap.
 
 ## Build from source
 
