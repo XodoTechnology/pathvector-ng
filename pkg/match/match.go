@@ -6,7 +6,7 @@ import (
 
 	log "github.com/sirupsen/logrus"
 
-	"github.com/natesales/pathvector/pkg/peeringdb"
+	"github.com/XodoTechnology/pathvector-ng/pkg/peeringdb"
 )
 
 // CommonIXs gets common IXPs from PeeringDB

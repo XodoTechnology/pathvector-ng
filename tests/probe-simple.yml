@@ -7,7 +7,7 @@ prefixes:
   - 2001:db8::/48
 cache-directory: test-cache
 bird-directory: test-bird/
-peeringdb-url: http://localhost:5000/api
+peeringdb-url: http://127.0.0.1:5000/api
 
 optimizer:
   probe-udp: true

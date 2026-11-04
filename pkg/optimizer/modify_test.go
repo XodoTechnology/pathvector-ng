@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/natesales/pathvector/pkg/config"
-	"github.com/natesales/pathvector/pkg/util"
+	"github.com/XodoTechnology/pathvector-ng/pkg/config"
+	"github.com/XodoTechnology/pathvector-ng/pkg/util"
 )
 
 func writeTestBIRDDir(t *testing.T) (string, string) {

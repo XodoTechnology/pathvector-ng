@@ -111,15 +111,15 @@ let darkCodeTheme = {
 
 /** @type {import('@docusaurus/types').Config} */
 const config = {
-  title: 'Pathvector',
+  title: 'Pathvector NG',
   tagline: 'Edge Routing Platform',
-  url: 'https://pathvector.io',
-  baseUrl: '/',
+  url: 'https://xodotechnology.github.io',
+  baseUrl: '/pathvector-ng/',
   onBrokenLinks: 'throw',
   onBrokenMarkdownLinks: 'warn',
   favicon: 'img/icon-white.png',
-  organizationName: 'natesales', // Usually your GitHub org/user name.
-  projectName: 'pathvector', // Usually your repo name.
+  organizationName: 'XodoTechnology', // Usually your GitHub org/user name.
+  projectName: 'pathvector-ng', // Usually your repo name.
 
   i18n: {
     defaultLocale: 'en',
@@ -134,7 +134,7 @@ const config = {
         docs: {
           sidebarPath: require.resolve('./sidebars.js'),
           // Remove this to remove the "edit this page" links.
-          editUrl: 'https://github.com/natesales/pathvector/edit/main/docs/',
+          editUrl: 'https://github.com/XodoTechnology/pathvector-ng/edit/dev/docs/',
         },
         blog: false,
         theme: {
@@ -149,13 +149,13 @@ const config = {
     ({
       announcementBar: {
         id: 'announcement',
-        content: 'Has Pathvector helped automate your network? Please consider <a href="https://github.com/sponsors/natesales">supporting the project</a>. A small donation goes a long way to keep Pathvector sustainable and free for everyone.',
+        content: 'Pathvector NG is a community-maintained continuation of <a href="https://github.com/natesales/pathvector">natesales/pathvector</a>, including the <a href="https://github.com/zappiehost/pathvector">zappiehost fork</a> additions.',
         backgroundColor: '#dd00ff',
         textColor: '#2d2d2d',
         isCloseable: false,
       },
       navbar: {
-        title: 'Pathvector',
+        title: 'Pathvector NG',
         // logo: {
         //   alt: 'Pathvector Logo',
         //   src: 'img/icon-white.svg',
@@ -180,7 +180,7 @@ const config = {
                 label: 'Configuration',
             },
             {
-                href: 'https://github.com/natesales/pathvector',
+                href: 'https://github.com/XodoTechnology/pathvector-ng',
                 label: 'GitHub',
                 position: 'right',
             },
@@ -188,7 +188,7 @@ const config = {
     },
       footer: {
         links: [],
-        copyright: `Copyright © ${new Date().getFullYear()} Nate Sales.`,
+        copyright: `Copyright © ${new Date().getFullYear()} Nate Sales and the Pathvector NG contributors. MIT licensed.`,
       },
       prism: {
         theme: lightCodeTheme,

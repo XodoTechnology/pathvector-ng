@@ -4,7 +4,7 @@ sidebar_position: 7
 
 # Plugins
 
-Pathvector can be extended with plugins. Plugins follow the `github.com/natesales/pathvector/pkg/plugin.Plugin` interface.
+Pathvector can be extended with plugins. Plugins follow the `github.com/XodoTechnology/pathvector-ng/pkg/plugin.Plugin` interface.
 
 ## Example
 
@@ -15,7 +15,7 @@ cd /tmp/example-plugin
 go mod init example.com/plugin
 # Write your plugin...
 cd ..
-git clone https://github.com/natesales/pathvector
+git clone https://github.com/XodoTechnology/pathvector-ng
 cd pathvector
 echo 'helloworld:example.com/plugin' >> plugin.cfg # Add the plugin's name and package path to Pathvector's plugin config
 ./plugin-generate.py
@@ -30,8 +30,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/natesales/pathvector/pkg/config"
-	"github.com/natesales/pathvector/pkg/plugin"
+	"github.com/XodoTechnology/pathvector-ng/pkg/config"
+	"github.com/XodoTechnology/pathvector-ng/pkg/plugin"
 )
 
 type Plugin struct{}

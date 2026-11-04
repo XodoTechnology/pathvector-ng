@@ -12,9 +12,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/natesales/pathvector/pkg/config"
-	"github.com/natesales/pathvector/pkg/embed"
-	"github.com/natesales/pathvector/pkg/templating"
+	"github.com/XodoTechnology/pathvector-ng/pkg/config"
+	"github.com/XodoTechnology/pathvector-ng/pkg/embed"
+	"github.com/XodoTechnology/pathvector-ng/pkg/templating"
 )
 
 // shimBGPQ4 puts a fake bgpq4 script running body first in PATH for the duration of the test

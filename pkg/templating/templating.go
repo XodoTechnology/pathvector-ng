@@ -12,8 +12,8 @@ import (
 
 	log "github.com/sirupsen/logrus"
 
-	"github.com/natesales/pathvector/pkg/config"
-	"github.com/natesales/pathvector/pkg/util"
+	"github.com/XodoTechnology/pathvector-ng/pkg/config"
+	"github.com/XodoTechnology/pathvector-ng/pkg/util"
 )
 
 var (

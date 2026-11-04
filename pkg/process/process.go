@@ -19,16 +19,16 @@ import (
 	"github.com/go-playground/validator/v10"
 	log "github.com/sirupsen/logrus"
 
-	"github.com/natesales/pathvector/pkg/bird"
-	"github.com/natesales/pathvector/pkg/block"
-	"github.com/natesales/pathvector/pkg/config"
-	"github.com/natesales/pathvector/pkg/embed"
-	"github.com/natesales/pathvector/pkg/irr"
-	"github.com/natesales/pathvector/pkg/peeringdb"
-	"github.com/natesales/pathvector/pkg/plugin"
-	"github.com/natesales/pathvector/pkg/templating"
-	"github.com/natesales/pathvector/pkg/util"
-	"github.com/natesales/pathvector/pkg/yang"
+	"github.com/XodoTechnology/pathvector-ng/pkg/bird"
+	"github.com/XodoTechnology/pathvector-ng/pkg/block"
+	"github.com/XodoTechnology/pathvector-ng/pkg/config"
+	"github.com/XodoTechnology/pathvector-ng/pkg/embed"
+	"github.com/XodoTechnology/pathvector-ng/pkg/irr"
+	"github.com/XodoTechnology/pathvector-ng/pkg/peeringdb"
+	"github.com/XodoTechnology/pathvector-ng/pkg/plugin"
+	"github.com/XodoTechnology/pathvector-ng/pkg/templating"
+	"github.com/XodoTechnology/pathvector-ng/pkg/util"
+	"github.com/XodoTechnology/pathvector-ng/pkg/yang"
 )
 
 // categorizeCommunity checks if the community is in standard or large form, or an empty string if invalid
@@ -996,7 +996,7 @@ func Run(configFilename, lockFile, version string, noConfigure, dryRun, withdraw
 		}
 	}
 
-	log.Infof("Starting Pathvector %s", version)
+	log.Infof("Starting Pathvector NG %s", version)
 	startTime := time.Now()
 
 	// Load the config file from config file

@@ -10,7 +10,7 @@ import (
 
 	log "github.com/sirupsen/logrus"
 
-	"github.com/natesales/pathvector/pkg/util"
+	"github.com/XodoTechnology/pathvector-ng/pkg/util"
 )
 
 // errOffline is returned in place of a live query error when live IRR queries are disabled

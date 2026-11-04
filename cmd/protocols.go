@@ -9,8 +9,8 @@ import (
 	"github.com/creasty/defaults"
 	log "github.com/sirupsen/logrus"
 
-	"github.com/natesales/pathvector/pkg/config"
-	"github.com/natesales/pathvector/pkg/templating"
+	"github.com/XodoTechnology/pathvector-ng/pkg/config"
+	"github.com/XodoTechnology/pathvector-ng/pkg/templating"
 )
 
 // birdPaths returns the BIRD control socket and BIRD config directory from c,

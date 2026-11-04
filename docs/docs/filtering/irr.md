@@ -43,7 +43,7 @@ Enable `auto-as-set-members` to retrieve that list automatically from their Peer
 
 Enable `verify-irr-policy` on a peer to check that the peer's own routing policy, as published in its RPSL `aut-num` object, still documents the session with you. This is useful to automatically shut down sessions with peers that have stopped peering with you (or never documented it), for example after a peer has moved to a different upstream.
 
-Pathvector queries the peer's `aut-num` object (`AS<peer ASN>`) from the [`irr-server`](https://pathvector.io/docs/configuration/#irr-server) over WHOIS (TCP port 43, or the port given as `host:port`), using the `irr-query-timeout`. If `bgpq-args` restricts the IRR sources with `-S`, the WHOIS query is restricted to the same sources. The session is considered valid if the object contains both:
+Pathvector queries the peer's `aut-num` object (`AS<peer ASN>`) from the [`irr-server`](/docs/configuration#irr-server) over WHOIS (TCP port 43, or the port given as `host:port`), using the `irr-query-timeout`. If `bgpq-args` restricts the IRR sources with `-S`, the WHOIS query is restricted to the same sources. The session is considered valid if the object contains both:
 
 - an import rule `from <X> ... accept ...` (`import:` or `mp-import:`), and
 - an export rule `to <X> ... announce ...` (`export:` or `mp-export:`),

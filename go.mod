@@ -1,4 +1,4 @@
-module github.com/natesales/pathvector
+module github.com/XodoTechnology/pathvector-ng
 
 go 1.18
 

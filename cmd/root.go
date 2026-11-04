@@ -6,9 +6,9 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 
-	"github.com/natesales/pathvector/pkg/config"
-	"github.com/natesales/pathvector/pkg/plugin"
-	"github.com/natesales/pathvector/pkg/process"
+	"github.com/XodoTechnology/pathvector-ng/pkg/config"
+	"github.com/XodoTechnology/pathvector-ng/pkg/plugin"
+	"github.com/XodoTechnology/pathvector-ng/pkg/process"
 )
 
 // These are set indirectly by the build process. The cmd.Execute() function takes these from the main package and sets them in this (cmd) package.
@@ -32,7 +32,7 @@ var (
 // CLI Commands
 var rootCmd = &cobra.Command{
 	Use:   "pathvector",
-	Short: "Pathvector is a declarative edge routing platform that automates route optimization and control plane configuration with secure and repeatable routing policy.",
+	Short: "Pathvector NG is a declarative edge routing platform that automates route optimization and control plane configuration with secure and repeatable routing policy.",
 }
 
 func loadConfig() (*config.Config, error) {

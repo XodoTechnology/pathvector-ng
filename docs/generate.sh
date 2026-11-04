@@ -2,7 +2,7 @@
 # This script generates documentation from type definitions
 
 echo Generating documentation
-go build -o /tmp/
+go build -o /tmp/pathvector .
 
 echo Generating options page
 echo -e '---
@@ -35,19 +35,19 @@ rm /tmp/pathvector
 # Generate PDF documentation
 echo Generating PDF
 
-commit=$(git rev-list --tags --max-count=1)
-version=$(git describe --tags "$commit" | cut -c2-)
+commit=$(git rev-list --tags --max-count=1 2>/dev/null || git rev-parse HEAD)
+version=$(git describe --tags "$commit" 2>/dev/null | cut -c2- || echo "0.0.0-dev")
 
 echo "
-# Pathvector
+# Pathvector NG
 
-Pathvector Edge Routing Platform version $version commit $commit" > release_full.md
+Pathvector NG Edge Routing Platform version $version commit $commit" > release_full.md
 
 for f in docs/docs/installation.md docs/docs/cli.md docs/docs/configuration.md; do
   sed '1 { /^---/ { :a N; /\n---/! ba; d} }' >> release_full.md < $f
 done
 
-echo "Copyright © 2022 Nate Sales" >> release_full.md
+echo "Copyright © 2022 Nate Sales and the Pathvector NG contributors" >> release_full.md
 
 pandoc release_full.md \
     -f gfm \
@@ -55,6 +55,6 @@ pandoc release_full.md \
     -V geometry:a4paper \
     -V geometry:margin=2cm \
     --pdf-engine=xelatex \
-    -o pathvector-$version-release.pdf
+    -o pathvector-ng-$version-release.pdf
 
 rm release_full.md

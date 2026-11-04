@@ -14,8 +14,8 @@ if [ ! -e /usr/bin/mkisofs ]; then
 fi
 
 # Copy binary
-cp pathvector_freebsd_amd64/pathvector ../vendorbuild/juniper/src-amd64/
-cp pathvector_freebsd_arm64/pathvector ../vendorbuild/juniper/src-arm64/
+cp pathvector*_freebsd_amd64*/pathvector ../vendorbuild/juniper/src-amd64/
+cp pathvector*_freebsd_arm64*/pathvector ../vendorbuild/juniper/src-arm64/
 
 # Get version
 version=$(git describe --tags "$(git rev-list --tags --max-count=1)" | cut -c2-)
@@ -38,10 +38,10 @@ rm -rf ../vendorbuild/juniper/src-amd64/pathvector
 rm -rf ../vendorbuild/juniper/src-arm64/pathvector
 
 # Rename file
-if [ ! -e pathvector-"$version"-juniper-amd64.tgz ]; then
-  mv pathvector-x86*tgz pathvector-"$version"-juniper-amd64.tgz
+if [ ! -e pathvector-ng-"$version"-juniper-amd64.tgz ]; then
+  mv pathvector-x86*tgz pathvector-ng-"$version"-juniper-amd64.tgz
 fi
 
-if [ ! -e pathvector-"$version"-juniper-arm64.tgz ]; then
-  mv pathvector-arm*tgz pathvector-"$version"-juniper-arm64.tgz
+if [ ! -e pathvector-ng-"$version"-juniper-arm64.tgz ]; then
+  mv pathvector-arm*tgz pathvector-ng-"$version"-juniper-arm64.tgz
 fi

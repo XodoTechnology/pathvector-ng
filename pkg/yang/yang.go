@@ -10,7 +10,7 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/natesales/pathvector/pkg/config"
+	"github.com/XodoTechnology/pathvector-ng/pkg/config"
 )
 
 const (
@@ -290,7 +290,7 @@ func generate(root reflect.Type) (string, error) {
 	w.line("prefix %s;", Prefix)
 	w.b.WriteString("\n")
 	w.line("organization %s;", quote("Pathvector"))
-	w.line("contact %s;", quote("https://github.com/natesales/pathvector"))
+	w.line("contact %s;", quote("https://github.com/XodoTechnology/pathvector-ng"))
 	w.line("description")
 	w.line("  %s;", quote("Configuration model of Pathvector, a declarative edge routing platform. "+
 		"This module is generated from the Pathvector configuration structs. "+

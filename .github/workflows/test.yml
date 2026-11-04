@@ -2,7 +2,9 @@ name: Test
 
 on:
   push:
+    branches: [main, dev]
   pull_request:
+    branches: [main, dev]
 
 jobs:
   test:
@@ -13,18 +15,18 @@ jobs:
         run: |
           wget http://ftp.us.debian.org/debian/pool/main/b/bgpq4/bgpq4_0.0.6-2_amd64.deb
           sudo dpkg -i bgpq4*.deb
-          sudo apt install -y bird2
+          sudo apt-get update && sudo apt-get install -y bird2
 
-      - uses: actions/setup-go@v4
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
         with:
-          go-version: '1.20'
-          cache: false
-
-      - uses: actions/checkout@v3
+          go-version: '1.24'
 
       - name: golangci-lint
-        uses: golangci/golangci-lint-action@v3
+        uses: golangci/golangci-lint-action@v6
         with:
+          version: v1.64
           args: -E gosec
 
       - run: go get -v -t -d ./...
@@ -37,7 +39,7 @@ jobs:
       - run: make test
 
       - name: Upload coverage report
-        uses: codecov/codecov-action@v1
+        uses: codecov/codecov-action@v4
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           file: ./coverage.txt

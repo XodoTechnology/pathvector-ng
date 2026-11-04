@@ -11,43 +11,43 @@ import {DownloadForm} from "../src/components/DownloadForm";
 -->
 
 All versions of Pathvector for all supported platforms are available to download from the
-latest [release page](https://github.com/natesales/pathvector/releases).
+latest [release page](https://github.com/XodoTechnology/pathvector-ng/releases).
 
 It is recommended to run Pathvector every 12 hours to update IRR prefix lists and PeeringDB prefix limits.
 Adding `0 */12 * * * pathvector generate` to your crontab will update the filters at 12 AM and PM every day.
 
 The only required dependency is `bird >= 2.0.7`, but some features require additional dependencies:
 
-- RPKI filtering: RTR server such as [gortr](https://github.com/cloudflare/gortr) or Cloudflare's public RTR server at `rtr.rpki.cloudflare.com:8282`
+- RPKI filtering: RTR server. Pathvector NG defaults to the project's public RTR at `rtr.irrd3.net:3233`; you can run your own (e.g. [gortr](https://github.com/cloudflare/gortr)) and set `rtr-server`.
+- IRR queries and PeeringDB lookups default to the project's public services (`irr.irrd3.net`, `https://pdb.irrd3.net/api`); override with `irr-server`/`peeringdb-url` if you run your own.
 - IRR prefix list generation: [bgpq4](https://github.com/bgp/bgpq4)
 - VRRP daemon: [keepalived](https://github.com/acassen/keepalived)
 
-## Package Repository
+## Packages
 
-Pathvector releases >= 5.1.2 are available in the https://repo.pathvector.io package repository. Packages will still
-continue to be uploaded to the [natesales repo](https://github.com/natesales/repo) for compatibility with existing
-installs, but for security it is recommended to use the repo.pathvector.io for all new installations due to increased
-security by GPG signatures. Packages in repo.pathvector.io are signed
-with [`0983 AC66 7B4F 0B54 F69D`](https://repo.pathvector.io/pgp.asc). Note that packages downloaded from GitHub
-releases are not signed.
+Pathvector NG on Linux is available for amd64, aarch64, and mips64 as binaries and deb and rpm packages
+from [releases](https://github.com/XodoTechnology/pathvector-ng/releases). The `pathvector-ng` package installs the
+`pathvector` binary and `replaces`/`conflicts` the upstream `pathvector` package, so it is a drop-in replacement.
 
-Pathvector on Linux is available for amd64, aarch64, and mips64 as binaries and deb and rpm packages
-from [releases](https://github.com/natesales/pathvector/releases).
+> Note: the upstream `repo.pathvector.io` package repository belonged to the original author and does not carry
+> Pathvector NG builds. Install packages straight from the GitHub release assets.
 
 ## Debian (Ubuntu, etc.)
 
+Download the `.deb` for your architecture from the
+[releases](https://github.com/XodoTechnology/pathvector-ng/releases) page, then:
+
 ```shell
-curl https://repo.pathvector.io/pgp.asc > /usr/share/keyrings/pathvector.asc
-echo "deb [signed-by=/usr/share/keyrings/pathvector.asc] https://repo.pathvector.io/apt/ stable main" > /etc/apt/sources.list.d/pathvector.list
-apt update && apt install -y pathvector
+apt install ./pathvector-ng_*_Linux_amd64.deb
 ```
 
 ## CentOS
 
+Download the `.rpm` for your architecture from the
+[releases](https://github.com/XodoTechnology/pathvector-ng/releases) page, then:
+
 ```shell
-yum install -y yum-utils
-yum-config-manager --add-repo https://repo.pathvector.io/yum/pathvector.repo
-yum install pathvector
+yum install ./pathvector-ng-*-Linux-amd64.rpm
 ```
 
 ## VyOS
@@ -61,7 +61,7 @@ TNSR is based on Ubuntu, see [Debian](#debian) for more information. Past TNSR v
 ## FreeBSD
 
 Pathvector is available as an amd64/aarch64 binary for FreeBSD from
-the [releases](https://github.com/natesales/pathvector/releases) page.
+the [releases](https://github.com/XodoTechnology/pathvector-ng/releases) page.
 
 ## Ubiquiti EdgeOS
 
@@ -73,13 +73,13 @@ Not Supported (MIPS1004Kc): ER-X, ER-X-SFP, ER-10X
 ## Arista EOS
 
 Pathvector can run on Arista switches by installing a SWIX (Switch Extension) file
-from [releases](https://github.com/natesales/pathvector/releases). First, copy the `pathvector-arista.swix` file
+from [releases](https://github.com/XodoTechnology/pathvector-ng/releases). First, copy the `pathvector-ng-*-arista-amd64.swix` file
 to `/mnt/flash/` on your switch.
 
 From the EOS CLI:
 
-1. Copy the extension to extensions: `copy flash:pathvector-arista.swix extensions:`
-2. Install the extension: `extension pathvector-arista.swix`
+1. Copy the extension to extensions: `copy flash:pathvector-ng-1.0.0-arista-amd64.swix extensions:`
+2. Install the extension: `extension pathvector-ng-1.0.0-arista-amd64.swix`
 3. Mark the extension to be installed on boot: `copy installed-extensions boot-extensions`
 4. Add the pathvector alias: `alias pathvector "bash pathvector"`
 5. Add Pathvector to scheduler (
@@ -96,7 +96,7 @@ Add the Pathvector extension provider:
 `set system extensions providers pathvector license-type customer deployment-scope commercial`
 
 Install the Pathvector package:
-`request system software add pathvector-juniper.tgz` or `request vmhost software add pathvector-juniper.tgz`
+`request system software add pathvector-ng-juniper.tgz` or `request vmhost software add pathvector-ng-juniper.tgz`
 
 ## Cisco IOx
 
@@ -126,6 +126,6 @@ the [many supported Go platforms](https://github.com/golang/go/blob/master/src/g
 For example, to build Pathvector for M1 Macs:
 
 ```bash
-git clone https://github.com/natesales/pathvector && cd pathvector
+git clone https://github.com/XodoTechnology/pathvector-ng && cd pathvector-ng
 GOOS=darwin GOARCH=arm64 go build
 ```

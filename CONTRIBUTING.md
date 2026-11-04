@@ -1,14 +1,21 @@
-# Contributing to Pathvector
+# Contributing to Pathvector NG
 
-Contributions to Pathvector are always appreciated! Please open an [Issue](https://github.com/natesales/pathvector/issues/new/choose) for bug reports or a [Pull Request](https://github.com/natesales/pathvector/compare) for code contributions.
+Contributions to Pathvector NG are always appreciated! Please open an
+[Issue](https://github.com/XodoTechnology/pathvector-ng/issues/new/choose) for bug reports or a
+[Pull Request](https://github.com/XodoTechnology/pathvector-ng/compare) for code contributions.
+
+## Branches
+
+- `dev` is the development branch. Open pull requests against `dev`.
+- `main` is the stable release branch. Releases are tagged from `main` after `dev` is merged in.
 
 ## Code Style
 
-Pathvector follows Go's conventional code style. Please run `go fmt` before opening a PR.
+Pathvector NG follows Go's conventional code style. Please run `go fmt` before opening a PR.
 
 ## Testing
 
-Pathvector relies on Go's [testing](https://pkg.go.dev/testing) package. All new code contributions should have associated unit and integration tests where applicable.
+Pathvector NG relies on Go's [testing](https://pkg.go.dev/testing) package. All new code contributions should have associated unit and integration tests where applicable.
 
 `make test-sequence` runs the unit and integration tests (it sets up a dummy interface and the local PeeringDB test API first, see the `Makefile`).
 

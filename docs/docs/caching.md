@@ -11,7 +11,7 @@ Networks should already be running their own RTR (RPKI to Router) server such as
 
 ## IRR
 
-Pathvector stores the results of every successful IRR query on disk, per peer, in the [`cache-directory`](https://pathvector.io/docs/configuration/#cache-directory):
+Pathvector stores the results of every successful IRR query on disk, per peer, in the [`cache-directory`](/docs/configuration#cache-directory):
 
 - `<cache-directory>/irr/AS<asn>_<peer name>.json` holds the IPv4 and IPv6 prefix sets (`filter-irr`) and the AS set members (`auto-as-set-members`) from the last successful query, along with the time of that query.
 
@@ -27,11 +27,11 @@ Cached data is only used for exactly the same query: if the peer's as-set, `bgpq
 
 Pathvector has an internal PeeringDB cache that stores PeeringDB objects *for the duration of a single `pathvector generate` run*. This does not cache for longer than a single command invocation.
 
-The in-memory cache is controlled by the global [`peeringdb-cache`](https://pathvector.io/docs/configuration/#peeringdb-cache) option (enabled by default). When enabled, peers that share an ASN only query PeeringDB once per run. `peeringdb-cache` is a global option, so it must be set at the top level of the config file, not under a peer or template.
+The in-memory cache is controlled by the global [`peeringdb-cache`](/docs/configuration#peeringdb-cache) option (enabled by default). When enabled, peers that share an ASN only query PeeringDB once per run. `peeringdb-cache` is a global option, so it must be set at the top level of the config file, not under a peer or template.
 
 ### Disabling PeeringDB queries for a peer
 
-Setting `peeringdb-cache: false` doesn't stop PeeringDB queries, it only disables the in-memory cache. Pathvector queries PeeringDB for a peer only when [`auto-import-limits`](https://pathvector.io/docs/configuration/#auto-import-limits) or [`auto-as-set`](https://pathvector.io/docs/configuration/#auto-as-set) is enabled for that peer (directly, or through a template). To stop querying PeeringDB for a single peer, disable both options and set the values manually:
+Setting `peeringdb-cache: false` doesn't stop PeeringDB queries, it only disables the in-memory cache. Pathvector queries PeeringDB for a peer only when [`auto-import-limits`](/docs/configuration#auto-import-limits) or [`auto-as-set`](/docs/configuration#auto-as-set) is enabled for that peer (directly, or through a template). To stop querying PeeringDB for a single peer, disable both options and set the values manually:
 
 ```yaml
 peers:
@@ -46,9 +46,9 @@ peers:
     as-set: AS-EXAMPLE
 ```
 
-Separately from per-peer queries, Pathvector makes one global PeeringDB query per run for the list of networks that should never be reachable via route servers when a peer has [`filter-never-via-route-servers`](https://pathvector.io/docs/configuration/#filter-never-via-route-servers) set.
+Separately from per-peer queries, Pathvector makes one global PeeringDB query per run for the list of networks that should never be reachable via route servers when a peer has [`filter-never-via-route-servers`](/docs/configuration#filter-never-via-route-servers) set.
 
-In addition, the results of successful PeeringDB queries are stored on disk in the [`cache-directory`](https://pathvector.io/docs/configuration/#cache-directory), and used with a warning when PeeringDB can't be queried:
+In addition, the results of successful PeeringDB queries are stored on disk in the [`cache-directory`](/docs/configuration#cache-directory), and used with a warning when PeeringDB can't be queried:
 
 - `<cache-directory>/peeringdb/AS<asn>.json` holds a network's PeeringDB data (used by `auto-import-limits` and `auto-as-set`).
 - `<cache-directory>/peeringdb/never-via-route-servers.json` holds the never via route servers list (used by `filter-never-via-route-servers`).
@@ -65,4 +65,4 @@ The default `cache-directory` (`/var/run/pathvector/cache/`) is usually on a tmp
 
 ### PeeringDB Local Cache
 
-To cache PeeringDB data persistently, you can set the global [`peeringdb-url`](https://pathvector.io/docs/configuration/#peeringdb-url) option to a local [PeeringDB cache server](https://github.com/natesales/peeringdb-cache).
+To cache PeeringDB data persistently, you can set the global [`peeringdb-url`](/docs/configuration#peeringdb-url) option to a local [PeeringDB cache server](https://github.com/natesales/peeringdb-cache).

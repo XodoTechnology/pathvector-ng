@@ -3,9 +3,9 @@ title: Support
 sidebar_position: 7
 ---
 
-Best-effort community support is available via GitHub. Please [open an issue](https://github.com/pathvector/pathvector/issues/new/choose) for any questions, bug reports, or feature requests.
+Best-effort community support is available via GitHub. Please [open an issue](https://github.com/XodoTechnology/pathvector-ng/issues/new/choose) for any questions, bug reports, or feature requests.
 
-*Has Pathvector helped automate your network? Support the project on [GitHub Sponsors](https://github.com/sponsors/natesales). A small donation goes a long way to keep Pathvector sustainable and free for everyone.*
+*Pathvector NG is a community continuation of [natesales/pathvector](https://github.com/natesales/pathvector). To support the original author, see [GitHub Sponsors](https://github.com/sponsors/natesales).*
 
 ## Reporting Configuration
 

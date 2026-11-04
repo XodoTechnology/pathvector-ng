@@ -12,7 +12,7 @@ import (
 
 	log "github.com/sirupsen/logrus"
 
-	"github.com/natesales/pathvector/pkg/config"
+	"github.com/XodoTechnology/pathvector-ng/pkg/config"
 )
 
 // Endpoint is a public value to allow setting to a cache server
@@ -21,7 +21,7 @@ var Endpoint = ""
 func init() {
 	// Check if running in test
 	if os.Getenv("PATHVECTOR_TEST") == "1" {
-		Endpoint = "http://localhost:5000/api"
+		Endpoint = "http://127.0.0.1:5000/api"
 	}
 }
 

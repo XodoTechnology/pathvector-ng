@@ -10,7 +10,7 @@ import (
 
 	log "github.com/sirupsen/logrus"
 
-	"github.com/natesales/pathvector/pkg/util"
+	"github.com/XodoTechnology/pathvector-ng/pkg/util"
 )
 
 // This file implements a persistent on-disk cache of PeeringDB results. Unlike the in-memory cache in NetworkInfo

@@ -1,4 +1,4 @@
-name: Deploy pathvector.io
+name: Deploy docs
 
 on:
   push:
@@ -9,6 +9,11 @@ on:
       - "generate.sh"
       - ".github/workflows/docs.yml"
       - "*.go"
+  workflow_dispatch:
+
+permissions:
+  pages: write
+  id-token: write
 
 jobs:
   deploy-docs:
@@ -16,15 +21,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout main
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v2
+      - uses: actions/setup-node@v4
         with:
-          node-version: '16'
+          node-version: '20'
 
-      - uses: actions/setup-go@v3
+      - uses: actions/setup-go@v5
         with:
-          go-version: 1.18
+          go-version: '1.24'
 
       - name: Generate docs
         run: go generate -x
@@ -32,11 +37,10 @@ jobs:
       - name: Build docs
         run: cd docs && npm install && npm run build
 
-      - name: Deploy to GitHub Pages
-        uses: crazy-max/ghaction-github-pages@v2
+      - name: Upload GitHub Pages artifact
+        uses: actions/upload-pages-artifact@v3
         with:
-          target_branch: gh-pages
-          build_dir: docs/build/
-          fqdn: pathvector.io
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          path: docs/build/
+
+      - name: Deploy to GitHub Pages
+        uses: actions/deploy-pages@v4

@@ -5,7 +5,7 @@ module pathvector {
   prefix pv;
 
   organization "Pathvector";
-  contact "https://github.com/natesales/pathvector";
+  contact "https://github.com/XodoTechnology/pathvector-ng";
   description
     "Configuration model of Pathvector, a declarative edge routing platform. This module is generated from the Pathvector configuration structs. Map sections of the YAML configuration (such as peers and templates) are modeled as lists keyed by name, and other maps are modeled as lists of key/value entries.";
 
@@ -185,6 +185,11 @@ module pathvector {
       type boolean;
       default "false";
       description "Should BGP next-hop-self for iBGP be enabled?";
+    }
+    leaf extended-next-hop {
+      type boolean;
+      default "false";
+      description "Should RFC 8950 extended next hop encoding be enabled?";
     }
     leaf bfd {
       type boolean;
@@ -384,12 +389,12 @@ module pathvector {
     }
     leaf import-limit4 {
       type int64;
-      default "1000000";
+      default "1500000";
       description "Maximum number of IPv4 prefixes to import after filtering";
     }
     leaf import-limit6 {
       type int64;
-      default "300000";
+      default "1000000";
       description "Maximum number of IPv6 prefixes to import after filtering";
     }
     leaf import-limit-violation {
@@ -739,7 +744,7 @@ module pathvector {
   }
   leaf peeringdb-url {
     type string;
-    default "https://peeringdb.com/api/";
+    default "https://pdb.irrd3.net/api";
     description "PeeringDB API URL, can be set to a local PeeringDB cache server";
   }
   leaf-list blocklist {
@@ -809,12 +814,12 @@ module pathvector {
   }
   leaf irr-server {
     type string;
-    default "rr.ntt.net";
+    default "irr.irrd3.net";
     description "Internet routing registry server";
   }
   leaf rtr-server {
     type string;
-    default "rtr.rpki.cloudflare.com:8282";
+    default "rtr.irrd3.net:3233";
     description "RPKI-to-router server";
   }
   leaf bgpq-args {

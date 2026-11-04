@@ -10,7 +10,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"github.com/natesales/pathvector/pkg/config"
+	"github.com/XodoTechnology/pathvector-ng/pkg/config"
 )
 
 // modulePrefix is the RFC 7951 namespace qualifier of top-level member names

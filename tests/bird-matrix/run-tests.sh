@@ -61,7 +61,7 @@ fi
 echo "==> Using pathvector binary $PATHVECTOR"
 
 # --- PeeringDB test API --------------------------------------------------------
-# The test configs set peeringdb-url to http://localhost:5000/api and
+# The test configs set peeringdb-url to http://127.0.0.1:5000/api and
 # generate-complex.yml uses filter-never-via-route-servers, which makes
 # pathvector query PeeringDB and abort if that fails. Serve the canned
 # responses from tests/peeringdb/ (same as `make peeringdb-test-harness`)

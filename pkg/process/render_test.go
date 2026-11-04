@@ -11,9 +11,9 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/natesales/pathvector/pkg/bird"
-	"github.com/natesales/pathvector/pkg/embed"
-	"github.com/natesales/pathvector/pkg/templating"
+	"github.com/XodoTechnology/pathvector-ng/pkg/bird"
+	"github.com/XodoTechnology/pathvector-ng/pkg/embed"
+	"github.com/XodoTechnology/pathvector-ng/pkg/templating"
 )
 
 // renderConfig loads a YAML config, renders the global and peer templates into a temporary directory and,

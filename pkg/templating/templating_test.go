@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/natesales/pathvector/pkg/config"
-	"github.com/natesales/pathvector/pkg/embed"
+	"github.com/XodoTechnology/pathvector-ng/pkg/config"
+	"github.com/XodoTechnology/pathvector-ng/pkg/embed"
 )
 
 func TestLoadTemplates(t *testing.T) {

@@ -5,7 +5,7 @@ sidebar_position: 5
 
 # Examples
 
-Every network is unique, so check out the [configuration docs](https://pathvector.io/docs/configuration) to write your
+Every network is unique, so check out the [configuration docs](/docs/configuration) to write your
 Pathvector config to suit your needs. Here's an example of using BGP communities to control routing policy:
 
 ## Communities

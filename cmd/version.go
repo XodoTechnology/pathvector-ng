@@ -8,9 +8,9 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 
-	"github.com/natesales/pathvector/pkg/bird"
-	"github.com/natesales/pathvector/pkg/plugin"
-	"github.com/natesales/pathvector/pkg/process"
+	"github.com/XodoTechnology/pathvector-ng/pkg/bird"
+	"github.com/XodoTechnology/pathvector-ng/pkg/plugin"
+	"github.com/XodoTechnology/pathvector-ng/pkg/process"
 )
 
 func init() {
@@ -18,7 +18,7 @@ func init() {
 }
 
 func versionBanner() string {
-	buf := fmt.Sprintf(`Pathvector %s
+	buf := fmt.Sprintf(`Pathvector NG %s
 Built %s on %s
 `, version, commit, date)
 	if len(plugin.Get()) > 0 {

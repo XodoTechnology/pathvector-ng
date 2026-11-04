@@ -131,7 +131,7 @@ PeeringDB API URL, can be set to a local PeeringDB cache server
 
 | Type | Default | Validation |
 |------|---------|------------|
-| string   | https://peeringdb.com/api/      |          |
+| string   | https://pdb.irrd3.net/api      |          |
 
 ### `blocklist`
 
@@ -235,7 +235,7 @@ Internet routing registry server
 
 | Type | Default | Validation |
 |------|---------|------------|
-| string   | rr.ntt.net      |          |
+| string   | irr.irrd3.net      |          |
 
 ### `rtr-server`
 
@@ -243,7 +243,7 @@ RPKI-to-router server
 
 | Type | Default | Validation |
 |------|---------|------------|
-| string   | rtr.rpki.cloudflare.com:8282      |          |
+| string   | rtr.irrd3.net:3233      |          |
 
 ### `bgpq-args`
 
@@ -1213,7 +1213,7 @@ Maximum number of IPv4 prefixes to import after filtering
 
 | Type | Default | Validation |
 |------|---------|------------|
-| int   | 1000000      |          |
+| int   | 1500000      |          |
 
 ### `import-limit6`
 
@@ -1221,7 +1221,7 @@ Maximum number of IPv6 prefixes to import after filtering
 
 | Type | Default | Validation |
 |------|---------|------------|
-| int   | 300000      |          |
+| int   | 1000000      |          |
 
 ### `import-limit-violation`
 

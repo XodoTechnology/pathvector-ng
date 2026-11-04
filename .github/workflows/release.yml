@@ -1,9 +1,14 @@
 name: goreleaser
 
+# Stable releases: tag a commit on main as v<major>.<minor>.<patch>.
+# The BIRD version matrix must pass before anything is published.
 on:
   push:
     tags:
-      - 'v[0-9]+.[0-9]+.[0-9]+' # symver vmajor.minor.patch format only
+      - 'v[0-9]+.[0-9]+.[0-9]+' # semver vmajor.minor.patch format only
+
+permissions:
+  contents: write
 
 jobs:
   # Validate the generated BIRD config against all supported BIRD versions
@@ -16,13 +21,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
       - name: Set up Go
-        uses: actions/setup-go@v3
+        uses: actions/setup-go@v5
         with:
-          go-version: 1.18
+          go-version: '1.24'
 
       - name: Install PDF generation dependencies
         run: |
@@ -39,10 +44,9 @@ jobs:
           JUNIPER_CERT: ${{ secrets.JUNIPER_CERT }}
 
       - name: Run GoReleaser
-        uses: goreleaser/goreleaser-action@v2
+        uses: goreleaser/goreleaser-action@v6
         with:
-          version: latest
+          version: '~> v2'
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          FURY_TOKEN: ${{ secrets.FURY_TOKEN }}

@@ -4,63 +4,71 @@ on:
   issue_comment:
     types: [created, edited]
 
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+
 jobs:
   Snapshot:
-    if: ${{ github.event.issue.pull_request && contains(github.event.comment.body, '/snapshot') && github.event.comment.user.login == 'natesales' }}
+    # Maintainers can comment /snapshot on a PR to cut a prerelease build
+    if: >-
+      ${{
+        github.event.issue.pull_request &&
+        contains(github.event.comment.body, '/snapshot') &&
+        contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association)
+      }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: ${{ github.event.issue.pull_request.head.sha }}
+          repository: ${{ github.event.issue.pull_request.head.repo.full_name }}
 
       - name: Get snapshot ID
         id: snapshot_id
         run: |
-          echo SNAPSHOT_ID=pathvector_$(git describe --tags "$(git rev-list --tags --max-count=1)" | cut -c2-)-SNAPSHOT-$(git rev-parse --short HEAD) >> $GITHUB_OUTPUT
+          echo SNAPSHOT_ID=pathvector-ng_$(git describe --tags "$(git rev-list --tags --max-count=1)" | cut -c2-)-SNAPSHOT-$(git rev-parse --short HEAD) >> $GITHUB_OUTPUT
 
       - name: Add start comment
-        uses: peter-evans/create-or-update-comment@v2
+        uses: peter-evans/create-or-update-comment@v4
         with:
           issue-number: ${{ github.event.issue.number }}
           body: |
             Starting snapshot release [`${{ steps.snapshot_id.outputs.SNAPSHOT_ID }}`](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
 
       - name: Set up Go
-        uses: actions/setup-go@v3
+        uses: actions/setup-go@v5
         with:
-          go-version: 1.18
+          go-version: '1.24'
 
       - name: Install PDF generation dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y pandoc texlive-xetex
 
-      - run: go generate -x
-      - run: mv pathvector*.pdf ${{ steps.snapshot_id.outputs.SNAPSHOT_ID }}.pdf
-
       - name: Run GoReleaser
-        uses: goreleaser/goreleaser-action@v2
+        uses: goreleaser/goreleaser-action@v6
         with:
-          version: latest
-          args: release --snapshot --rm-dist --release-header distrib/snapshot-header.md
+          version: '~> v2'
+          args: release --snapshot --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          FURY_TOKEN: ${{ secrets.FURY_TOKEN }}
 
-      - uses: actions/upload-artifact@v3
+      - run: mv pathvector-ng*.pdf ${{ steps.snapshot_id.outputs.SNAPSHOT_ID }}.pdf || true
+      - run: mkdir -p snapshot && mv dist/* snapshot/ && mv ${{ steps.snapshot_id.outputs.SNAPSHOT_ID }}.pdf snapshot/ || true
+
+      - name: Upload snapshot artifacts
+        uses: actions/upload-artifact@v4
         with:
-          name: ${{ steps.snapshot_id.outputs.SNAPSHOT_ID }} snapshot release
-          path: |
-            dist/pathvector*.deb
-            dist/pathvector*.rpm
-            dist/pathvector*checksums.txt
-            dist/pathvector*.tar.gz
-            pathvector*.pdf
+          name: ${{ steps.snapshot_id.outputs.SNAPSHOT_ID }}
+          path: snapshot/
 
-      - name: Post end comment
-        uses: peter-evans/create-or-update-comment@v2
+      - name: Add finish comment
+        uses: peter-evans/create-or-update-comment@v4
         with:
           issue-number: ${{ github.event.issue.number }}
           body: |
-            Finished snapshot release [`${{ steps.snapshot_id.outputs.SNAPSHOT_ID }}`](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+            Snapshot [`${{ steps.snapshot_id.outputs.SNAPSHOT_ID }}`](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) finished — download the build from the workflow artifacts.

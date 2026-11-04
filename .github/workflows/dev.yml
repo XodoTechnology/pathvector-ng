@@ -1,0 +1,52 @@
+name: Dev prerelease
+
+# Builds a snapshot from the dev branch and refreshes the rolling `dev`
+# prerelease on GitHub. Stable releases are tagged from main (release.yml).
+on:
+  push:
+    branches: [dev]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+
+      - name: Install PDF generation dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y pandoc texlive-xetex
+
+      - name: Build snapshot
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          version: '~> v2'
+          args: release --snapshot --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Refresh dev prerelease
+        run: |
+          gh release delete dev --yes --cleanup-tag 2>/dev/null || true
+          gh release create dev --prerelease \
+            --title "Development snapshot ($(git rev-parse --short HEAD))" \
+            --notes-file distrib/snapshot-header.md \
+            dist/*.tar.gz dist/*.deb dist/*.rpm dist/checksums.txt 2>/dev/null \
+            || gh release create dev --prerelease \
+            --title "Development snapshot ($(git rev-parse --short HEAD))" \
+            --notes-file distrib/snapshot-header.md \
+            dist/*.tar.gz dist/*.deb dist/*.rpm
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

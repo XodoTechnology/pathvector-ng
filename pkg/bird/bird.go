@@ -17,7 +17,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/mod/semver"
 
-	"github.com/natesales/pathvector/pkg/util"
+	"github.com/XodoTechnology/pathvector-ng/pkg/util"
 )
 
 // Minimum supported BIRD version

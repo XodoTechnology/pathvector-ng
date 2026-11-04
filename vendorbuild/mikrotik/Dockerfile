@@ -4,7 +4,7 @@ COPY . .
 RUN go build -o pathvector
 
 FROM debian:11-slim
-MAINTAINER info@pathvector.io
+LABEL maintainer="accounts@xodo.net"
 
 RUN apt-get update && apt-get -y install cron
 

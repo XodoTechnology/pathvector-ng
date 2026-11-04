@@ -13,8 +13,8 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 
-	"github.com/natesales/pathvector/pkg/bird"
-	"github.com/natesales/pathvector/pkg/process"
+	"github.com/XodoTechnology/pathvector-ng/pkg/bird"
+	"github.com/XodoTechnology/pathvector-ng/pkg/process"
 )
 
 var sensitiveKeys = []string{

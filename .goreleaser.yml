@@ -1,3 +1,5 @@
+project_name: pathvector-ng
+
 before:
   hooks:
     - go generate
@@ -5,6 +7,9 @@ before:
 
 builds:
   - id: pathvector
+    # The binary stays `pathvector` so Pathvector NG is a drop-in replacement:
+    # existing configs, systemd units and /etc paths keep working.
+    binary: pathvector
     env:
       - CGO_ENABLED=0
     goos:
@@ -24,15 +29,21 @@ changelog:
 
 nfpms:
   - id: pathvector
-    package_name: pathvector
+    package_name: pathvector-ng
     file_name_template: "{{ .ProjectName }}-{{ .Version }}-{{ .Os }}-{{ .Arch }}"
-    vendor: Nate Sales
-    homepage: https://pathvector.io
-    maintainer: Nate Sales <nate@natesales.net>
-    description: Pathvector is a declarative edge routing platform that automates route optimization and control plane configuration with secure and repeatable routing policy.
+    vendor: Xodo Technology
+    homepage: https://github.com/XodoTechnology/pathvector-ng
+    maintainer: Xodo Technology <accounts@xodo.net>
+    description: Pathvector NG is a declarative edge routing platform that automates route optimization and control plane configuration with secure and repeatable routing policy. Community-maintained continuation of natesales/pathvector.
     license: MIT
     section: utils
     priority: extra
+    provides:
+      - pathvector
+    replaces:
+      - pathvector
+    conflicts:
+      - pathvector
     builds:
       - pathvector
 
@@ -47,16 +58,10 @@ publishers:
   - name: vendorbuild
     cmd: ./vendorbuild/build.sh
 
-  - name: fury.io
-    ids:
-      - pathvector
-    dir: "{{ dir .ArtifactPath }}"
-    cmd: curl -s -F package=@{{ .ArtifactName }} https://{{ .Env.FURY_TOKEN }}@push.fury.io/natesales/
-
 release:
   extra_files:
     - glob: dist/pathvector-*arista*
     - glob: dist/pathvector-*juniper*
     - glob: dist/pathvector-*cisco*
     - glob: dist/pathvector-*mikrotik*
-    - glob: pathvector-*-release.pdf
+    - glob: pathvector-ng-*-release.pdf
