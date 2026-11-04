@@ -68,6 +68,8 @@ func StartProbe(o *config.Optimizer, sourceMap map[string][]string, global *conf
 		o.Db = map[string][]config.ProbeResult{} // peerName to list of probe results
 	}
 
+	deprefed := map[string]bool{} // peers whose local pref is currently lowered
+
 	for {
 		// Loop over every source/target pair
 		for peerName, sources := range sourceMap {
@@ -77,7 +79,8 @@ func StartProbe(o *config.Optimizer, sourceMap map[string][]string, global *conf
 						log.Debugf("[Optimizer] Sending %d ICMP probes src %s dst %s", o.PingCount, source, target)
 						stats, err := sendPing(source, target, o.PingCount, o.PingTimeout, o.ProbeUDPMode)
 						if err != nil {
-							return err
+							log.Warnf("[Optimizer] probe src %s dst %s failed: %s", source, target, err)
+							continue
 						}
 
 						// Check for nil Db entries
@@ -109,7 +112,7 @@ func StartProbe(o *config.Optimizer, sourceMap map[string][]string, global *conf
 		}
 
 		// Compute averages
-		computeMetrics(o, global, noConfigure, dryRun)
+		computeMetrics(o, global, noConfigure, dryRun, deprefed)
 
 		// Sleep before sending the next probe
 		waitInterval := time.Duration(o.Interval) * time.Second
@@ -119,7 +122,7 @@ func StartProbe(o *config.Optimizer, sourceMap map[string][]string, global *conf
 }
 
 // computeMetrics calculates average latency and packet loss
-func computeMetrics(o *config.Optimizer, global *config.Config, noConfigure bool, dryRun bool) {
+func computeMetrics(o *config.Optimizer, global *config.Config, noConfigure bool, dryRun bool, deprefed map[string]bool) {
 	p := map[string]*peerAvg{}
 	for peer := range o.Db {
 		if p[peer] == nil {
@@ -155,7 +158,8 @@ func computeMetrics(o *config.Optimizer, global *config.Config, noConfigure bool
 			)
 		}
 
-		// If there is at least one alert,
+		// If there is at least one alert, lower the local pref once and remember
+		// it so the configured pref can be restored when the peer recovers.
 		if len(alerts) > 0 {
 			for _, alert := range alerts {
 				log.Debugf("[Optimizer] %s", alert)
@@ -169,15 +173,28 @@ func computeMetrics(o *config.Optimizer, global *config.Config, noConfigure bool
 					}
 				}
 			}
-			modifyPref(peer,
+			if !deprefed[peer] {
+				modifyPref(peer,
+					global.Peers,
+					o.LocalPrefModifier,
+					global.BIRDDirectory,
+					global.BIRDSocket,
+					global.BIRDBinary,
+					noConfigure,
+					dryRun,
+				)
+				deprefed[peer] = true
+			}
+		} else if deprefed[peer] {
+			restorePref(peer,
 				global.Peers,
-				o.LocalPrefModifier,
 				global.BIRDDirectory,
 				global.BIRDSocket,
 				global.BIRDBinary,
 				noConfigure,
 				dryRun,
 			)
+			delete(deprefed, peer)
 		}
 	}
 }
@@ -203,10 +220,6 @@ func modifyPref(
 	}
 
 	fileName := path.Join(birdDirectory, fmt.Sprintf("AS%s_%s.conf", peerASN, *util.Sanitize(peerName)))
-	peerFile, err := os.ReadFile(fileName)
-	if err != nil {
-		log.Fatalf("reading peer file (has pathvector generate been run?): %s", err)
-	}
 
 	// Calculate new local pref
 	currentLocalPref := *peerData.LocalPref
@@ -216,19 +229,64 @@ func modifyPref(
 		newLocalPref = currentLocalPref - int(localPrefModifier) //nolint:gosec // localPrefModifier < currentLocalPref
 	}
 
-	lpRegex := regexp.MustCompile(`bgp_local_pref = .*; # pathvector:localpref`)
+	writeLocalPref(fileName, currentLocalPref, newLocalPref, "Lowered", peerASN, peerName, birdBinary, birdDirectory, birdSocket, noConfigure, dryRun)
+}
+
+// restorePref writes the configured local pref back into the peer's active BIRD config file.
+func restorePref(
+	peerPair string,
+	peers map[string]*config.Peer,
+	birdDirectory string,
+	birdSocket string,
+	birdBinary string,
+	noConfigure bool,
+	dryRun bool,
+) {
+	peerASN, peerName := parsePeerDelimiter(peerPair)
+	peerData := peers[peerName]
+	if peerData == nil || !util.Deref(peerData.OptimizeInbound) {
+		return
+	}
+
+	writeLocalPref(path.Join(birdDirectory, fmt.Sprintf("AS%s_%s.conf", peerASN, *util.Sanitize(peerName))),
+		*peerData.LocalPref, *peerData.LocalPref, "Restored", peerASN, peerName,
+		birdBinary, birdDirectory, birdSocket, noConfigure, dryRun)
+}
+
+// writeLocalPref rewrites the bgp_local_pref line in a peer file and reloads BIRD.
+func writeLocalPref(
+	fileName string,
+	currentLocalPref int,
+	newLocalPref int,
+	verb string,
+	peerASN string,
+	peerName string,
+	birdBinary string,
+	birdDirectory string,
+	birdSocket string,
+	noConfigure bool,
+	dryRun bool,
+) {
+	peerFile, err := os.ReadFile(fileName)
+	if err != nil {
+		log.Warnf("[Optimizer] reading peer file (has pathvector generate been run?): %s", err)
+		return
+	}
+
+	lpRegex := regexp.MustCompile(`bgp_local_pref = [^;]*; # pathvector:localpref`)
 	modified := lpRegex.ReplaceAllString(string(peerFile), fmt.Sprintf("bgp_local_pref = %d; # pathvector:localpref", newLocalPref))
 
 	if dryRun {
-		log.Printf("[Optimizer] Dry run, would lower AS%s %s local-pref from %d to %d", peerASN, peerName, currentLocalPref, newLocalPref)
+		log.Printf("[Optimizer] Dry run, would set AS%s %s local-pref to %d", peerASN, peerName, newLocalPref)
 		return
 	}
 
 	//nolint:golint,gosec
 	if err := os.WriteFile(fileName, []byte(modified), 0644); err != nil {
-		log.Fatal(err)
+		log.Warnf("[Optimizer] writing peer file: %s", err)
+		return
 	}
-	log.Printf("[Optimizer] Lowered AS%s %s local-pref from %d to %d", peerASN, peerName, currentLocalPref, newLocalPref)
+	log.Printf("[Optimizer] %s AS%s %s local-pref from %d to %d", verb, peerASN, peerName, currentLocalPref, newLocalPref)
 
 	// Run BIRD config validation on the active config
 	bird.Validate(birdBinary, birdDirectory)
