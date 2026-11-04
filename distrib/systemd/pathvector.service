@@ -1,0 +1,12 @@
+[Unit]
+Description=Pathvector NG edge routing configuration
+After=network.target bird.service
+Wants=bird.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/pathvector generate -c /etc/pathvector.yml
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

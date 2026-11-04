@@ -38,6 +38,15 @@ nfpms:
     license: MIT
     section: utils
     priority: extra
+    contents:
+      - src: distrib/systemd/pathvector.service
+        dst: /usr/lib/systemd/system/pathvector.service
+      - src: distrib/systemd/pathvector-generate.service
+        dst: /usr/lib/systemd/system/pathvector-generate.service
+      - src: distrib/systemd/pathvector-generate.timer
+        dst: /usr/lib/systemd/system/pathvector-generate.timer
+      - src: distrib/systemd/pathvector-metrics.service
+        dst: /usr/lib/systemd/system/pathvector-metrics.service
     provides:
       - pathvector
     replaces:
