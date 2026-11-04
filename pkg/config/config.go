@@ -127,6 +127,8 @@ type Peer struct {
 	ExtendedNextHop        *bool     `yaml:"extended-next-hop" description:"Should RFC 8950 extended next hop encoding be enabled?" default:"false"`
 	BFD                    *bool     `yaml:"bfd" description:"Should BFD be enabled?" default:"false"`
 	Password               *string   `yaml:"password" description:"BGP MD5 password" default:"-"`
+	PasswordFile           *string   `yaml:"password-file" description:"Read the BGP MD5 password from this file instead of embedding it in the config (used only when password is unset)" default:"-"`
+	PasswordEnv            *string   `yaml:"password-env" description:"Read the BGP MD5 password from this environment variable (used only when password is unset)" default:"-"`
 	RSClient               *bool     `yaml:"rs-client" description:"Should this peer be a route server client?" default:"false"`
 	RRClient               *bool     `yaml:"rr-client" description:"Should this peer be a route reflector client?" default:"false"`
 	RemovePrivateASNs      *bool     `yaml:"remove-private-asns" description:"Should private ASNs be removed from path before exporting?" default:"true"`

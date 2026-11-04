@@ -200,6 +200,14 @@ module pathvector {
       type string;
       description "BGP MD5 password";
     }
+    leaf password-file {
+      type string;
+      description "Read the BGP MD5 password from this file instead of embedding it in the config (used only when password is unset)";
+    }
+    leaf password-env {
+      type string;
+      description "Read the BGP MD5 password from this environment variable (used only when password is unset)";
+    }
     leaf rs-client {
       type boolean;
       default "false";

@@ -415,6 +415,23 @@ func Load(configBlob []byte) (*config.Config, error) {
 			applyTemplate(peerData, template)
 		} // end peer template processor
 
+		// Resolve secret indirection after templates so template-level
+		// password-file/password-env work too. Explicit `password` wins.
+		if peerData.Password == nil && peerData.PasswordFile != nil {
+			b, err := os.ReadFile(*peerData.PasswordFile)
+			if err != nil {
+				log.Fatalf("[%s] reading password-file %s: %s", peerName, *peerData.PasswordFile, err)
+			}
+			peerData.Password = util.Ptr(strings.TrimSpace(string(b)))
+		}
+		if peerData.Password == nil && peerData.PasswordEnv != nil {
+			if v, ok := os.LookupEnv(*peerData.PasswordEnv); ok {
+				peerData.Password = util.Ptr(v)
+			} else {
+				log.Fatalf("[%s] password-env %s is not set", peerName, *peerData.PasswordEnv)
+			}
+		}
+
 		// Record whether local pref options were configured (on the peer or its template) before defaults are applied
 		localPrefConfigured := peerData.LocalPref != nil || peerData.LocalPref4 != nil || peerData.LocalPref6 != nil
 		setLocalPrefConfigured := peerData.SetLocalPref != nil

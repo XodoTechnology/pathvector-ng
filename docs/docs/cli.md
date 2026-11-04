@@ -11,8 +11,10 @@ Usage:
 
 Available Commands:
   birdsh      Lightweight BIRD shell
+  check       Validate configuration: render and BIRD-validate without applying
   completion  Generate the autocompletion script for the specified shell
   config      Export configuration, optionally sanitized with logknife
+  diff        Show a unified diff between the rendered config and the live BIRD directory
   dump        Dump configuration
   generate    Generate router configuration
   help        Help about any command

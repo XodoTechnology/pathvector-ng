@@ -959,6 +959,22 @@ BGP MD5 password
 |------|---------|------------|
 | string   |       |          |
 
+### `password-file`
+
+Read the BGP MD5 password from this file instead of embedding it in the config (used only when password is unset)
+
+| Type | Default | Validation |
+|------|---------|------------|
+| string   |       |          |
+
+### `password-env`
+
+Read the BGP MD5 password from this environment variable (used only when password is unset)
+
+| Type | Default | Validation |
+|------|---------|------------|
+| string   |       |          |
+
 ### `rs-client`
 
 Should this peer be a route server client?
