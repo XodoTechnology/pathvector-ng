@@ -125,9 +125,9 @@ peers:
     asn: 6939
     neighbors: [192.0.2.1, 2001:db8::1]
 `)
-	// Defaults must match the documented values (import-limit4: 1000000, import-limit6: 300000)
-	assert.Contains(t, out["Transit"], "define AS6939_TRANSIT_IMPORT_v4 = 1000000;")
-	assert.Contains(t, out["Transit"], "define AS6939_TRANSIT_IMPORT_v6 = 300000;")
+	// Defaults must match the documented values (import-limit4: 1500000, import-limit6: 1000000)
+	assert.Contains(t, out["Transit"], "define AS6939_TRANSIT_IMPORT_v4 = 1500000;")
+	assert.Contains(t, out["Transit"], "define AS6939_TRANSIT_IMPORT_v6 = 1000000;")
 }
 
 func TestRenderASPrefsPerAF(t *testing.T) {
