@@ -307,6 +307,14 @@ module pathvector {
       default "false";
       description "Accept prefixes up to /24 and /48 from covering parent IRR objects";
     }
+    leaf irr-prefix-length4 {
+      type int64;
+      description "Override the IPv4 max prefix length bound used with irr-accept-child-prefixes (bgpq4 -R; default 32)";
+    }
+    leaf irr-prefix-length6 {
+      type int64;
+      description "Override the IPv6 max prefix length bound used with irr-accept-child-prefixes (bgpq4 -R; default 128)";
+    }
     leaf-list add-on-import {
       type string;
       ordered-by user;

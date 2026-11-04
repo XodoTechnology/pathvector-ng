@@ -1143,6 +1143,22 @@ Accept prefixes up to /24 and /48 from covering parent IRR objects
 |------|---------|------------|
 | bool   | false      |          |
 
+### `irr-prefix-length4`
+
+Override the IPv4 max prefix length bound used with irr-accept-child-prefixes (bgpq4 -R; default 32)
+
+| Type | Default | Validation |
+|------|---------|------------|
+| int   |       |          |
+
+### `irr-prefix-length6`
+
+Override the IPv6 max prefix length bound used with irr-accept-child-prefixes (bgpq4 -R; default 128)
+
+| Type | Default | Validation |
+|------|---------|------------|
+| int   |       |          |
+
 ### `add-on-import`
 
 List of communities to add to all imported routes
