@@ -53,6 +53,14 @@ Path to BIRD binary
 |------|---------|------------|
 | string   | /usr/sbin/bird      |          |
 
+### `metrics-listen`
+
+Listen address for the Prometheus metrics endpoint used by pathvector metrics (e.g. 127.0.0.1:9517; empty uses the --listen default)
+
+| Type | Default | Validation |
+|------|---------|------------|
+| string   |       |          |
+
 ### `bird-socket`
 
 UNIX control socket for BIRD

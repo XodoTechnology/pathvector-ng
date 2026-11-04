@@ -699,6 +699,10 @@ module pathvector {
     default "/usr/sbin/bird";
     description "Path to BIRD binary";
   }
+  leaf metrics-listen {
+    type string;
+    description "Listen address for the Prometheus metrics endpoint used by pathvector metrics (e.g. 127.0.0.1:9517; empty uses the --listen default)";
+  }
   leaf bird-socket {
     type string;
     default "/run/bird/bird.ctl";

@@ -17,6 +17,7 @@ Available Commands:
   generate    Generate router configuration
   help        Help about any command
   match       Find common IXPs for a given ASN
+  metrics     Serve BIRD protocol state and route counts in Prometheus format on /metrics
   optimizer   Start optimization daemon
   restart     Restart BIRD protocols
   status      Show protocol status
@@ -34,15 +35,3 @@ Flags:
 
 Use "pathvector [command] --help" for more information about a command.
 ```
-```
-
-## metrics
-
-`pathvector metrics` serves BIRD protocol state and route counts in Prometheus
-exposition format. Default listen address is `127.0.0.1:9517` (override with
-`--listen` or the `metrics-listen` config option). Point Prometheus at
-`http://<host>:9517/metrics`.
-
-Exposed series: `pathvector_bird_up`, `pathvector_protocol_up`,
-`pathvector_protocol_routes{direction=imported|filtered|exported|preferred}`,
-`pathvector_bgp_session_info`.
