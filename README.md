@@ -160,7 +160,7 @@ Then run `pathvector generate -c /etc/pathvector.yml` on a schedule (e.g.
 * Every open issue/PR-class fix listed above — upstream is unmaintained
 * New peer fields: `gateway`, `cost`, `l3vpn`, `source4`, `source6`, `vip-interface`,
   `prefix-prefs`, `as-prefs4`, `as-prefs6`, `extended-next-hop`, named communities
-* `pathvector restart`, `pathvector yang`, `pathvector verify-irr-policy`, `pathvector metrics` commands
+* `pathvector check` (CI-safe config lint), `pathvector restart`, `pathvector yang`, `pathvector verify-irr-policy`, `pathvector metrics` commands
 * zappiehost improvements: policy-before-sanity import filter order, /32 and /128 blackholing with proper
   `RTD_BLACKHOLE`, standard+large blackhole communities, sorted `status` output
 * Default import limits bumped to `1500000` (v4) / `1000000` (v6)
