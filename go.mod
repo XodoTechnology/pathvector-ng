@@ -5,7 +5,7 @@ go 1.18
 require (
 	github.com/creasty/defaults v1.7.0
 	github.com/fatih/color v1.15.0
-	github.com/go-ping/ping v1.1.0
+	github.com/go-ping/ping v1.2.0
 	github.com/go-playground/validator/v10 v10.12.0
 	github.com/natesales/logknife v0.0.4-0.20230403055117-5e928ad4153b
 	github.com/olekukonko/tablewriter v0.0.5
