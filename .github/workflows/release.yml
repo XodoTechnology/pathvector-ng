@@ -44,7 +44,7 @@ jobs:
           JUNIPER_CERT: ${{ secrets.JUNIPER_CERT }}
 
       - name: Run GoReleaser
-        uses: goreleaser/goreleaser-action@v6
+        uses: goreleaser/goreleaser-action@v7
         with:
           version: '~> v2'
           args: release --clean
