@@ -36,7 +36,7 @@ the rendered output matches the live config, 1 when they differ.`,
 		// -I ignores the "# Update time:" header; side files that only exist in
 		// one directory are excluded.
 		//nolint:gosec
-		diff := exec.Command("diff", "-urN", "-I", "^# Update time:", "-x", "protocols.json", "-x", "pathvector.yml", c.CacheDirectory, c.BIRDDirectory)
+		diff := exec.Command("diff", "-urN", "-I", "^# Update time:", "-x", "protocols.json", "-x", "pathvector.yml", "-x", "envvars", "-x", "*.json", "-x", "*.yml", "-x", ".rollback", c.CacheDirectory, c.BIRDDirectory)
 		diff.Stdout = os.Stdout
 		diff.Stderr = os.Stderr
 		if err := diff.Run(); err != nil {

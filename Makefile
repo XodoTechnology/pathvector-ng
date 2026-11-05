@@ -51,3 +51,6 @@ bird-matrix-local:
 	tests/bird-matrix/run-tests.sh $(addprefix tests/bird-matrix/,$(BIRD_VERSIONS))
 
 .PHONY: bird-matrix bird-matrix-local
+
+e2e:
+	bash tests/e2e/run-tests.sh
