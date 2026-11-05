@@ -44,13 +44,16 @@ jobs:
           latest=$(gh api "repos/${{ github.repository }}/git/refs/tags" --jq '.[].ref' \
             | sed 's|refs/tags/||' | grep -E '^v[0-9]+\.[0-9]+(\.[0-9]+)?$' \
             | sort -t. -k1,1n -k2,2n -k3,3n | tail -1 || true)
-          major=${latest%%.*}; rest=${latest#*.}; minor=${rest%%.*}; patch=${rest#*.}
-          msg=$(git log -1 --pretty=%B)
-          if [[ "$msg" == *"#major"* ]]; then major=$((major+1)); minor=0; patch=0
-          elif [[ "$msg" == *"#minor"* ]]; then minor=$((minor+1)); patch=0
-          else patch=$((patch+1)); fi
-          echo "tag=v${major}.${minor}.${patch}" >> "$GITHUB_OUTPUT"
-          echo "next tag: v${major}.${minor}.${patch} (from v${latest})"
+          if [ -z "$latest" ]; then
+            tag="v0.1"
+          else
+            major=${latest%%.*}; rest=${latest#*.}; minor=${rest%%.*}
+            msg=$(git log -1 --pretty=%B)
+            if [[ "$msg" == *"#major"* ]]; then major=$((major+1)); minor=0; else minor=$((minor+1)); fi
+            tag="v${major}.${minor}"
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "next tag: $tag (from v${latest:-none})"
       - name: Create tag
         # gh release create makes the tag server-side — the same mechanism the
         # dev-snapshot prerelease uses. git push / REST ref creation would be
