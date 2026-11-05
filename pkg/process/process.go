@@ -1118,7 +1118,6 @@ func Run(configFilename, lockFile, version string, noConfigure, dryRun, withdraw
 				if r := recover(); r != nil {
 					peerErrs <- fmt.Errorf("[%s] %v", peerName, r)
 				}
-				wg.Done()
 			}()
 			peer(peerName, peerData, c, offline, wg)
 		}(peerName, peerData)
