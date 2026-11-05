@@ -31,6 +31,8 @@ jobs:
     needs: e2e
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.ver.outputs.tag }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -69,3 +71,37 @@ jobs:
           fi
           gh release create "$tag" --target "$GITHUB_SHA" --title "$tag" --generate-notes
           echo "created $tag"
+
+  bird-matrix:
+    needs: tag
+    uses: ./.github/workflows/bird-matrix.yml
+
+  goreleaser:
+    needs: [tag, bird-matrix]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.tag.outputs.tag }}
+          fetch-depth: 0
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+      - name: Install PDF generation dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y pandoc texlive-xetex
+      - name: Store signing files
+        run: |
+          echo "$JUNIPER_KEY" | base64 -d > vendorbuild/juniper/key.pem || true
+          echo "$JUNIPER_CERT" | base64 -d > vendorbuild/juniper/cert.pem || true
+        env:
+          JUNIPER_KEY: ${{ secrets.JUNIPER_KEY }}
+          JUNIPER_CERT: ${{ secrets.JUNIPER_CERT }}
+      - name: Run GoReleaser
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          version: '~> v2'
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
