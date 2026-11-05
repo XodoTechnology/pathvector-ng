@@ -52,9 +52,9 @@ jobs:
           echo "tag=v${major}.${minor}.${patch}" >> "$GITHUB_OUTPUT"
           echo "next tag: v${major}.${minor}.${patch} (from v${latest})"
       - name: Create tag
-        # Create the ref via the REST API — GitHub makes it server-side, so a
-        # GITHUB_TOKEN with only contents:write is enough even when the tagged
-        # commit modifies .github/workflows/ (a git push would be refused).
+        # gh release create makes the tag server-side — the same mechanism the
+        # dev-snapshot prerelease uses. git push / REST ref creation would be
+        # refused because the tagged commit modifies .github/workflows/.
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
