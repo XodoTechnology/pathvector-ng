@@ -1106,14 +1106,35 @@ func Run(configFilename, lockFile, version string, noConfigure, dryRun, withdraw
 		c.NoAnnounce = true
 	}
 
-	// Iterate over peers
+	// Iterate over peers — panics inside a worker goroutine are recovered here
+	// and returned as errors; recover() in Run only covers the main goroutine.
 	log.Debug("Processing peers")
 	wg := new(sync.WaitGroup)
+	peerErrs := make(chan error, len(c.Peers))
 	for peerName, peerData := range c.Peers {
 		wg.Add(1)
-		go peer(peerName, peerData, c, offline, wg)
+		go func(peerName string, peerData *config.Peer) {
+			defer func() {
+				if r := recover(); r != nil {
+					peerErrs <- fmt.Errorf("[%s] %v", peerName, r)
+				}
+				wg.Done()
+			}()
+			peer(peerName, peerData, c, offline, wg)
+		}(peerName, peerData)
 	} // end peer loop
 	wg.Wait()
+	close(peerErrs)
+	for perr := range peerErrs {
+		if err == nil {
+			err = perr
+		} else {
+			log.Errorf("%v", perr)
+		}
+	}
+	if err != nil {
+		return err
+	}
 
 	// Run BIRD config validation
 	bird.Validate(c.BIRDBinary, c.CacheDirectory)
