@@ -10,8 +10,11 @@ import (
 	"github.com/XodoTechnology/pathvector-ng/pkg/process"
 )
 
+var diffQuiet bool
+
 func init() {
 	diffCmd.Flags().BoolVar(&offline, "offline", false, "Don't query IRR or PeeringDB, only use data cached by previous runs")
+	diffCmd.Flags().BoolVarP(&diffQuiet, "quiet", "q", false, "Only report whether the configs differ (exit code)")
 	rootCmd.AddCommand(diffCmd)
 }
 
@@ -37,7 +40,9 @@ the rendered output matches the live config, 1 when they differ.`,
 		// one directory are excluded.
 		//nolint:gosec
 		diff := exec.Command("diff", "-urN", "-I", "^# Update time:", "-x", "protocols.json", "-x", "pathvector.yml", "-x", "envvars", "-x", "*.json", "-x", "*.yml", "-x", ".rollback", c.CacheDirectory, c.BIRDDirectory)
-		diff.Stdout = os.Stdout
+		if !diffQuiet {
+			diff.Stdout = os.Stdout
+		}
 		diff.Stderr = os.Stderr
 		if err := diff.Run(); err != nil {
 			if ee, ok := err.(*exec.ExitError); ok && ee.ExitCode() == 1 {
