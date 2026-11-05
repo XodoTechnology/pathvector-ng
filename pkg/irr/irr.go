@@ -195,19 +195,26 @@ func UpdateWithCache(peerData *config.Peer, irrServer string, queryTimeout uint,
 		}
 	}
 
-	// Handle acceptChildPrefixes
+	// Handle acceptChildPrefixes — -R bounds are overridable per family
+	bound4, bound6 := 32, 128
+	if peerData.IRRPrefixLength4 != nil {
+		bound4 = *peerData.IRRPrefixLength4
+	}
+	if peerData.IRRPrefixLength6 != nil {
+		bound6 = *peerData.IRRPrefixLength6
+	}
 	bgpqArgs4 := bgpqArgs
 	bgpqArgs6 := bgpqArgs
 	if peerData.IRRAcceptChildPrefixes != nil && *peerData.IRRAcceptChildPrefixes {
 		if bgpqArgs4 != "" {
 			bgpqArgs4 += " "
 		}
-		bgpqArgs4 += "-R 32"
+		bgpqArgs4 += fmt.Sprintf("-R %d", bound4)
 
 		if bgpqArgs6 != "" {
 			bgpqArgs6 += " "
 		}
-		bgpqArgs6 += "-R 128"
+		bgpqArgs6 += fmt.Sprintf("-R %d", bound6)
 	}
 
 	// The cache key covers everything that changes the query result, so cached data is never used for a different query

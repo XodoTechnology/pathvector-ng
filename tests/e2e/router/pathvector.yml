@@ -1,0 +1,20 @@
+asn: 65001
+router-id: 192.0.2.1
+prefixes: ["203.0.113.0/24"]
+peeringdb-url: http://pdb:5000/api
+bird-directory: /etc/bird/
+cache-directory: /var/run/pathvector/cache/
+bird-socket: /run/bird/bird.ctl
+peers:
+  Peer:
+    asn: 65002
+    neighbors: ["PEER_IP"]
+    description: e2e test peer
+    local-pref: 120
+    import: true
+    export: true
+    enforce-first-as: true
+    filter-bogon-routes: true
+    filter-bogon-asns: false
+    filter-prefix-length: true
+    next-hop-self: true

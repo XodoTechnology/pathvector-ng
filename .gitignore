@@ -31,3 +31,4 @@ nohup.out
 coverage.txt
 tests/bird-matrix/v[0-9]*
 test-bird/
+tests/e2e/pathvector

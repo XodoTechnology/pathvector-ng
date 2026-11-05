@@ -53,6 +53,14 @@ Path to BIRD binary
 |------|---------|------------|
 | string   | /usr/sbin/bird      |          |
 
+### `metrics-listen`
+
+Listen address for the Prometheus metrics endpoint used by pathvector metrics (e.g. 127.0.0.1:9517; empty uses the --listen default)
+
+| Type | Default | Validation |
+|------|---------|------------|
+| string   |       |          |
+
 ### `bird-socket`
 
 UNIX control socket for BIRD
@@ -951,6 +959,22 @@ BGP MD5 password
 |------|---------|------------|
 | string   |       |          |
 
+### `password-file`
+
+Read the BGP MD5 password from this file instead of embedding it in the config (used only when password is unset)
+
+| Type | Default | Validation |
+|------|---------|------------|
+| string   |       |          |
+
+### `password-env`
+
+Read the BGP MD5 password from this environment variable (used only when password is unset)
+
+| Type | Default | Validation |
+|------|---------|------------|
+| string   |       |          |
+
 ### `rs-client`
 
 Should this peer be a route server client?
@@ -1118,6 +1142,22 @@ Accept prefixes up to /24 and /48 from covering parent IRR objects
 | Type | Default | Validation |
 |------|---------|------------|
 | bool   | false      |          |
+
+### `irr-prefix-length4`
+
+Override the IPv4 max prefix length bound used with irr-accept-child-prefixes (bgpq4 -R; default 32)
+
+| Type | Default | Validation |
+|------|---------|------------|
+| int   |       |          |
+
+### `irr-prefix-length6`
+
+Override the IPv6 max prefix length bound used with irr-accept-child-prefixes (bgpq4 -R; default 128)
+
+| Type | Default | Validation |
+|------|---------|------------|
+| int   |       |          |
 
 ### `add-on-import`
 

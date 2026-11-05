@@ -20,7 +20,7 @@ jobs:
           fetch-depth: 0
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v7
         with:
           go-version: '1.24'
 
@@ -30,7 +30,7 @@ jobs:
           sudo apt-get install -y pandoc texlive-xetex
 
       - name: Build snapshot
-        uses: goreleaser/goreleaser-action@v6
+        uses: goreleaser/goreleaser-action@v7
         with:
           version: '~> v2'
           args: release --snapshot --clean
@@ -39,12 +39,12 @@ jobs:
 
       - name: Refresh dev prerelease
         run: |
-          gh release delete dev --yes --cleanup-tag 2>/dev/null || true
-          gh release create dev --prerelease \
+          gh release delete dev-snapshot --yes --cleanup-tag 2>/dev/null || true
+          gh release create dev-snapshot --prerelease \
             --title "Development snapshot ($(git rev-parse --short HEAD))" \
             --notes-file distrib/snapshot-header.md \
             dist/*.tar.gz dist/*.deb dist/*.rpm dist/checksums.txt 2>/dev/null \
-            || gh release create dev --prerelease \
+            || gh release create dev-snapshot --prerelease \
             --title "Development snapshot ($(git rev-parse --short HEAD))" \
             --notes-file distrib/snapshot-header.md \
             dist/*.tar.gz dist/*.deb dist/*.rpm

@@ -200,6 +200,14 @@ module pathvector {
       type string;
       description "BGP MD5 password";
     }
+    leaf password-file {
+      type string;
+      description "Read the BGP MD5 password from this file instead of embedding it in the config (used only when password is unset)";
+    }
+    leaf password-env {
+      type string;
+      description "Read the BGP MD5 password from this environment variable (used only when password is unset)";
+    }
     leaf rs-client {
       type boolean;
       default "false";
@@ -298,6 +306,14 @@ module pathvector {
       type boolean;
       default "false";
       description "Accept prefixes up to /24 and /48 from covering parent IRR objects";
+    }
+    leaf irr-prefix-length4 {
+      type int64;
+      description "Override the IPv4 max prefix length bound used with irr-accept-child-prefixes (bgpq4 -R; default 32)";
+    }
+    leaf irr-prefix-length6 {
+      type int64;
+      description "Override the IPv6 max prefix length bound used with irr-accept-child-prefixes (bgpq4 -R; default 128)";
     }
     leaf-list add-on-import {
       type string;
@@ -698,6 +714,10 @@ module pathvector {
     type string;
     default "/usr/sbin/bird";
     description "Path to BIRD binary";
+  }
+  leaf metrics-listen {
+    type string;
+    description "Listen address for the Prometheus metrics endpoint used by pathvector metrics (e.g. 127.0.0.1:9517; empty uses the --listen default)";
   }
   leaf bird-socket {
     type string;

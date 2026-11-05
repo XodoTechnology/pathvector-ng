@@ -1,0 +1,6 @@
+[Unit]
+Description=Pathvector NG config regeneration (IRR/PeeringDB refresh)
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/pathvector generate -c /etc/pathvector.yml

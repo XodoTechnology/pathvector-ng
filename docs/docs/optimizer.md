@@ -15,7 +15,9 @@ Pathvector can use latency and packet loss metrics to make routing decisions. Th
 3. When a peer's average latency or packet loss meets or exceeds `latency-threshold` or `packet-loss-threshold`, the
    optimizer runs the alert script (if configured) and, for peers with `optimize-inbound: true`, lowers the peer's local
    pref to `local-pref - modifier` by editing the peer's config file in the BIRD directory in place. The modified
-   config is validated with BIRD and BIRD is reconfigured (unless `--no-configure` is set).
+   config is validated with BIRD and BIRD is reconfigured (unless `--no-configure` is set). The depref is applied
+   once per alerting period; when the peer's metrics drop back below the thresholds, the optimizer restores the
+   configured local pref the same way.
 
 With `--dry-run`, the optimizer logs the local pref change it would make without modifying any files.
 

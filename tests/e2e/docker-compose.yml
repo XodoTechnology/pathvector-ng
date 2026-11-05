@@ -1,0 +1,23 @@
+services:
+  router:
+    build:
+      context: ../..
+      dockerfile: tests/e2e/router/Dockerfile
+    networks: [e2e]
+    cap_add: [NET_ADMIN]
+    depends_on: [pdb]
+  peer:
+    build:
+      context: ../..
+      dockerfile: tests/e2e/peer/Dockerfile
+    networks: [e2e]
+    cap_add: [NET_ADMIN]
+    depends_on: [router]
+  pdb:
+    build:
+      context: ../..
+      dockerfile: tests/e2e/pdb/Dockerfile
+    networks: [e2e]
+networks:
+  e2e:
+    driver: bridge

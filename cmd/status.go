@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"encoding/json"
 	"fmt"
 	"sort"
 	"strings"
@@ -18,6 +19,7 @@ var (
 	realProtocolNames bool
 	onlyBGP           bool
 	showTags          bool
+	jsonOut           bool
 	tagFilter         []string
 )
 
@@ -25,6 +27,7 @@ func init() {
 	statusCmd.Flags().BoolVarP(&realProtocolNames, "real-protocol-names", "r", false, "use real protocol names")
 	statusCmd.Flags().BoolVarP(&onlyBGP, "bgp", "b", false, "only show BGP protocols")
 	statusCmd.Flags().BoolVar(&showTags, "tags", false, "show tags column")
+	statusCmd.Flags().BoolVar(&jsonOut, "json", false, "output as JSON")
 	statusCmd.Flags().StringArrayVarP(&tagFilter, "filter", "f", []string{}, "tags to filter by")
 	rootCmd.AddCommand(statusCmd)
 }
@@ -114,6 +117,51 @@ var statusCmd = &cobra.Command{
 			// If same prefix priority, sort alphabetically (case insensitive)
 			return strings.ToLower(protocolStates[i].Name) < strings.ToLower(protocolStates[j].Name)
 		})
+
+		if jsonOut {
+			type session struct {
+				Name     string   `json:"name"`
+				Protocol string   `json:"protocol"`
+				Neighbor string   `json:"neighbor,omitempty"`
+				ASN      int      `json:"asn,omitempty"`
+				State    string   `json:"state"`
+				Imported int      `json:"routes_imported,omitempty"`
+				Exported int      `json:"routes_exported,omitempty"`
+				Since    string   `json:"since"`
+				Info     string   `json:"info"`
+				Tags     []string `json:"tags,omitempty"`
+			}
+			out := []session{}
+			for _, st := range protocolStates {
+				if onlyBGP && st.BGP == nil {
+					continue
+				}
+				se := session{Name: st.Name, Protocol: st.Proto, State: st.State, Since: st.Since, Info: st.Info}
+				if st.BGP != nil {
+					se.Neighbor = st.BGP.NeighborAddress
+					se.ASN = st.BGP.NeighborAS
+				}
+				if st.Routes != nil {
+					se.Imported = st.Routes.Imported
+					se.Exported = st.Routes.Exported
+				}
+				if p, found := protocols[st.Name]; found {
+					se.Tags = p.Tags
+					if !realProtocolNames {
+						se.Name = p.Name
+					}
+				}
+				if len(tagFilter) == 0 || containsAny(tagFilter, se.Tags) {
+					out = append(out, se)
+				}
+			}
+			j, err := json.MarshalIndent(out, "", "  ")
+			if err != nil {
+				log.Fatal(err)
+			}
+			fmt.Println(string(j))
+			return
+		}
 
 		header := []string{"Peer", "AS", "Neighbor", "State", "In", "Out", "Since", "Info"}
 		if showTags {

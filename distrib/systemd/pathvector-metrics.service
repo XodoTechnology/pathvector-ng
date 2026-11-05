@@ -1,0 +1,12 @@
+[Unit]
+Description=Pathvector NG Prometheus metrics exporter
+After=network.target bird.service
+Wants=bird.service
+
+[Service]
+ExecStart=/usr/local/sbin/pathvector metrics -c /etc/pathvector.yml
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

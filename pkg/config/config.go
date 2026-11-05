@@ -127,6 +127,8 @@ type Peer struct {
 	ExtendedNextHop        *bool     `yaml:"extended-next-hop" description:"Should RFC 8950 extended next hop encoding be enabled?" default:"false"`
 	BFD                    *bool     `yaml:"bfd" description:"Should BFD be enabled?" default:"false"`
 	Password               *string   `yaml:"password" description:"BGP MD5 password" default:"-"`
+	PasswordFile           *string   `yaml:"password-file" description:"Read the BGP MD5 password from this file instead of embedding it in the config (used only when password is unset)" default:"-"`
+	PasswordEnv            *string   `yaml:"password-env" description:"Read the BGP MD5 password from this environment variable (used only when password is unset)" default:"-"`
 	RSClient               *bool     `yaml:"rs-client" description:"Should this peer be a route server client?" default:"false"`
 	RRClient               *bool     `yaml:"rr-client" description:"Should this peer be a route reflector client?" default:"false"`
 	RemovePrivateASNs      *bool     `yaml:"remove-private-asns" description:"Should private ASNs be removed from path before exporting?" default:"true"`
@@ -148,6 +150,8 @@ type Peer struct {
 	DisableAfterError      *bool     `yaml:"disable-after-error" description:"Disable peer after error" default:"false"`
 	PreferOlderRoutes      *bool     `yaml:"prefer-older-routes" description:"Prefer older routes instead of comparing router IDs (RFC 5004)" default:"false"`
 	IRRAcceptChildPrefixes *bool     `yaml:"irr-accept-child-prefixes" description:"Accept prefixes up to /24 and /48 from covering parent IRR objects" default:"false"`
+	IRRPrefixLength4         *int      `yaml:"irr-prefix-length4" description:"Override the IPv4 max prefix length bound used with irr-accept-child-prefixes (bgpq4 -R; default 32)" default:"-"`
+	IRRPrefixLength6         *int      `yaml:"irr-prefix-length6" description:"Override the IPv6 max prefix length bound used with irr-accept-child-prefixes (bgpq4 -R; default 128)" default:"-"`
 
 	ImportCommunities    *[]string `yaml:"add-on-import" description:"List of communities to add to all imported routes" default:"-"`
 	ExportCommunities    *[]string `yaml:"add-on-export" description:"List of communities to add to all exported routes" default:"-"`
@@ -350,6 +354,7 @@ type Config struct {
 	IRRQueryTimeout       uint   `yaml:"irr-query-timeout" description:"IRR query timeout in seconds" default:"30"`
 	BIRDDirectory         string `yaml:"bird-directory" description:"Directory to store BIRD configs" default:"/etc/bird/"`
 	BIRDBinary            string `yaml:"bird-binary" description:"Path to BIRD binary" default:"/usr/sbin/bird"`
+	MetricsListen         string `yaml:"metrics-listen" description:"Listen address for the Prometheus metrics endpoint used by pathvector metrics (e.g. 127.0.0.1:9517; empty uses the --listen default)" default:"-"`
 	BIRDSocket            string `yaml:"bird-socket" description:"UNIX control socket for BIRD" default:"/run/bird/bird.ctl"`
 	CacheDirectory        string `yaml:"cache-directory" description:"Directory to store runtime configuration cache" default:"/var/run/pathvector/cache/"`
 	KeepalivedConfig      string `yaml:"keepalived-config" description:"Configuration file for keepalived" default:"/etc/keepalived.conf"`
