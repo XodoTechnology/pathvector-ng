@@ -1,0 +1,53 @@
+name: auto-release
+
+# Every push to main that passes the end-to-end suite gets tagged with the
+# next semver version (patch by default; put "#minor" or "#major" in the
+# commit message to bump more). The tag then triggers release.yml, which
+# runs the BIRD matrix and publishes the release.
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: auto-release
+  cancel-in-progress: false
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.24"
+      - name: Run end-to-end smoke test
+        run: bash tests/e2e/run-tests.sh
+
+  tag:
+    needs: e2e
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Compute next version
+        id: ver
+        run: |
+          set -euo pipefail
+          latest=$(git tag -l 'v[0-9]*.[0-9]*.[0-9]*' | sed 's/^v//' | sort -t. -k1,1n -k2,2n -k3,3n | tail -1)
+          major=${latest%%.*}; rest=${latest#*.}; minor=${rest%%.*}; patch=${rest#*.}
+          msg=$(git log -1 --pretty=%B)
+          if [[ "$msg" == *"#major"* ]]; then major=$((major+1)); minor=0; patch=0
+          elif [[ "$msg" == *"#minor"* ]]; then minor=$((minor+1)); patch=0
+          else patch=$((patch+1)); fi
+          echo "tag=v${major}.${minor}.${patch}" >> "$GITHUB_OUTPUT"
+          echo "next tag: v${major}.${minor}.${patch} (from v${latest})"
+      - name: Push tag
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag "${{ steps.ver.outputs.tag }}"
+          git push origin "${{ steps.ver.outputs.tag }}"
