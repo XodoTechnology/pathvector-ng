@@ -313,7 +313,19 @@ func addUnknownFieldHints(errMsg string) string {
 
 // Load loads a configuration file from a YAML file, or a JSON file (either in
 // the same structure as the YAML file or as RFC 7951 JSON of the YANG model)
-func Load(configBlob []byte) (*config.Config, error) {
+// fatalf panics with a formatted error; the Load/Run boundaries recover it
+// and return it as a normal error instead of exiting the process.
+func fatalf(format string, args ...any) {
+	panic(fmt.Errorf(format, args...))
+}
+
+func Load(configBlob []byte) (out *config.Config, retErr error) {
+	defer func() {
+		if r := recover(); r != nil {
+			out = nil
+			retErr = fmt.Errorf("%v", r)
+		}
+	}()
 	if yang.IsRFC7951(configBlob) {
 		converted, err := yang.FromRFC7951(configBlob)
 		if err != nil {
@@ -375,7 +387,7 @@ func Load(configBlob []byte) (*config.Config, error) {
 	if c.Hostname == "" {
 		hostname, err := os.Hostname()
 		if err != nil {
-			log.Fatalf("Hostname is not defined and unable to get system hostname: %s", err)
+			fatalf("Hostname is not defined and unable to get system hostname: %s", err)
 		}
 		c.Hostname = hostname
 	}
@@ -401,7 +413,7 @@ func Load(configBlob []byte) (*config.Config, error) {
 		}
 
 		if peerData.NeighborIPs == nil || len(*peerData.NeighborIPs) < 1 {
-			log.Fatalf("[%s] has no neighbors defined", peerName)
+			fatalf("[%s] has no neighbors defined", peerName)
 		}
 
 		peerData.BooleanOptions = &[]string{}
@@ -410,7 +422,7 @@ func Load(configBlob []byte) (*config.Config, error) {
 		if peerData.Template != nil && *peerData.Template != "" {
 			template := c.Templates[*peerData.Template]
 			if template == nil {
-				log.Fatalf("Template %s not found", *peerData.Template)
+				fatalf("Template %s not found", *peerData.Template)
 			}
 			applyTemplate(peerData, template)
 		} // end peer template processor
@@ -420,7 +432,7 @@ func Load(configBlob []byte) (*config.Config, error) {
 		if peerData.Password == nil && peerData.PasswordFile != nil {
 			b, err := os.ReadFile(*peerData.PasswordFile)
 			if err != nil {
-				log.Fatalf("[%s] reading password-file %s: %s", peerName, *peerData.PasswordFile, err)
+				fatalf("[%s] reading password-file %s: %s", peerName, *peerData.PasswordFile, err)
 			}
 			peerData.Password = util.Ptr(strings.TrimSpace(string(b)))
 		}
@@ -428,7 +440,7 @@ func Load(configBlob []byte) (*config.Config, error) {
 			if v, ok := os.LookupEnv(*peerData.PasswordEnv); ok {
 				peerData.Password = util.Ptr(v)
 			} else {
-				log.Fatalf("[%s] password-env %s is not set", peerName, *peerData.PasswordEnv)
+				fatalf("[%s] password-env %s is not set", peerName, *peerData.PasswordEnv)
 			}
 		}
 
@@ -444,7 +456,7 @@ func Load(configBlob []byte) (*config.Config, error) {
 			fieldValue := peerValue.FieldByName(fieldName)
 			defaultString := templateValueType.Field(i).Tag.Get("default")
 			if defaultString == "" {
-				log.Fatalf("Code error: field %s has no default value", fieldName)
+				fatalf("Code error: field %s has no default value", fieldName)
 			} else if defaultString != "-" {
 				log.Tracef("[%s] (before defaulting, after templating) field %s value %+v", peerName, fieldName, reflect.Indirect(fieldValue))
 				if fieldValue.IsNil() {
@@ -456,7 +468,7 @@ func Load(configBlob []byte) (*config.Config, error) {
 					case reflect.Int:
 						defaultValueInt, err := strconv.Atoi(defaultString)
 						if err != nil {
-							log.Fatalf("Can't convert '%s' to uint", defaultString)
+							fatalf("Can't convert '%s' to uint", defaultString)
 						}
 						log.Tracef("[%s] setting field %s to value %+v", peerName, fieldName, defaultValueInt)
 						fieldValue.Set(reflect.ValueOf(&defaultValueInt))
@@ -464,14 +476,14 @@ func Load(configBlob []byte) (*config.Config, error) {
 						var err error // explicit declaration used to avoid scope issues of defaultValue
 						defaultBool, err := strconv.ParseBool(defaultString)
 						if err != nil {
-							log.Fatalf("Can't parse bool %s", defaultString)
+							fatalf("Can't parse bool %s", defaultString)
 						}
 						log.Tracef("[%s] setting field %s to value %+v", peerName, fieldName, defaultBool)
 						fieldValue.Set(reflect.ValueOf(&defaultBool))
 					case reflect.Struct, reflect.Slice:
 						// Ignore structs and slices
 					default:
-						log.Fatalf("Unknown kind %+v for field %s", elemToSwitch, fieldName)
+						fatalf("Unknown kind %+v for field %s", elemToSwitch, fieldName)
 					}
 				} else {
 					// Add boolean values to the peer's config
@@ -508,11 +520,11 @@ func Load(configBlob []byte) (*config.Config, error) {
 		}
 
 		if peerData.DefaultLocalPref != nil && util.Deref(peerData.OptimizeInbound) {
-			log.Fatalf("Both DefaultLocalPref and OptimizeInbound set, Pathvector cannot optimize this peer.")
+			fatalf("Both DefaultLocalPref and OptimizeInbound set, Pathvector cannot optimize this peer.")
 		}
 
 		if peerData.OnlyAnnounce != nil && util.Deref(peerData.AnnounceAll) {
-			log.Fatalf("[%s] only-announce and announce-all cannot both be true", peerName)
+			fatalf("[%s] only-announce and announce-all cannot both be true", peerName)
 		}
 
 		// Replace community names with their communities
@@ -745,12 +757,12 @@ func Load(configBlob []byte) (*config.Config, error) {
 	if c.RTRServer != "" {
 		rtrServerParts := strings.Split(c.RTRServer, ":")
 		if len(rtrServerParts) != 2 {
-			log.Fatalf("Invalid rtr-server '%s' format should be host:port", rtrServerParts)
+			fatalf("Invalid rtr-server '%s' format should be host:port", rtrServerParts)
 		}
 		c.RTRServerHost = rtrServerParts[0]
 		rtrServerPort, err := strconv.Atoi(rtrServerParts[1])
 		if err != nil {
-			log.Fatalf("Invalid RTR server port %s", rtrServerParts[1])
+			fatalf("Invalid RTR server port %s", rtrServerParts[1])
 		}
 		c.RTRServerPort = rtrServerPort
 	}
@@ -836,7 +848,7 @@ func Load(configBlob []byte) (*config.Config, error) {
 	blocklist := block.Combine(c.Blocklist, c.BlocklistURLs, c.BlocklistFiles)
 	bASNs, bPrefixes, err := block.Parse(blocklist)
 	if err != nil {
-		log.Fatal(err)
+		panic(fmt.Errorf("%v", err))
 	}
 	c.BlocklistASNs = bASNs
 	c.BlocklistPrefixes = bPrefixes
@@ -844,7 +856,7 @@ func Load(configBlob []byte) (*config.Config, error) {
 
 	// Run plugins
 	if err := plugin.ModifyAll(&c); err != nil {
-		log.Fatal(err)
+		panic(fmt.Errorf("%v", err))
 	}
 
 	return &c, nil // nil error
@@ -911,7 +923,7 @@ func peer(peerName string, peerData *config.Peer, c *config.Config, offline bool
 		//nolint:gosec // ASNs are 32-bit by definition
 		pDbData, err := peeringdb.NetworkInfoWithFallback(uint32(*peerData.ASN), c.PeeringDBQueryTimeout, c.PeeringDBAPIKey, c.PeeringDBCache, c.CacheDirectory, offline)
 		if err != nil {
-			log.Fatalf("[%s] unable to get PeeringDB data: %+v", peerName, err)
+			fatalf("[%s] unable to get PeeringDB data: %+v", peerName, err)
 		}
 		peeringdb.UpdateFromData(peerData, pDbData)
 	} // end peeringdb query enabled
@@ -955,7 +967,7 @@ func peer(peerName string, peerData *config.Peer, c *config.Config, offline bool
 	}
 	if *peerData.FilterASSet && (peerData.ASSetMembers == nil || len(*peerData.ASSetMembers) < 1) {
 		if !*peerData.AutoASSetMembers {
-			log.Fatalf("peer has filter-as-set enabled but no members in it's as-set")
+			fatalf("peer has filter-as-set enabled but no members in it's as-set")
 		}
 		rejectImports(peerName, peerData, "filter-as-set is enabled but no as-set members were found")
 		// An empty AS set member list would render an invalid BIRD set; all imports are rejected anyway
@@ -972,7 +984,7 @@ func peer(peerName string, peerData *config.Peer, c *config.Config, offline bool
 	peerFileName := path.Join(c.CacheDirectory, fmt.Sprintf("AS%d_%s.conf", *peerData.ASN, *util.Sanitize(peerName)))
 	peerSpecificFile, err := os.Create(peerFileName)
 	if err != nil {
-		log.Fatalf("Create peer specific output file: %v", err)
+		fatalf("Create peer specific output file: %v", err)
 	}
 
 	// Render the template and write to buffer
@@ -983,12 +995,12 @@ func peer(peerName string, peerData *config.Peer, c *config.Config, offline bool
 		Peer:   *peerData,
 		Config: *c,
 	}); err != nil {
-		log.Fatalf("Execute template: %v", err)
+		fatalf("Execute template: %v", err)
 	}
 
 	// Reformat config and write template to file
 	if _, err := peerSpecificFile.Write([]byte(bird.Reformat(b.String()))); err != nil {
-		log.Fatalf("Write template to file: %v", err)
+		fatalf("Write template to file: %v", err)
 	}
 
 	log.Debugf("[%s] Wrote config", peerName)
@@ -996,20 +1008,25 @@ func peer(peerName string, peerData *config.Peer, c *config.Config, offline bool
 
 // Run runs the full data generation procedure
 // If offline is true, no live IRR or PeeringDB queries are made and only data cached by previous runs is used.
-func Run(configFilename, lockFile, version string, noConfigure, dryRun, withdraw, offline bool) {
+func Run(configFilename, lockFile, version string, noConfigure, dryRun, withdraw, offline bool) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("%v", r)
+		}
+	}()
 	// Check lockfile
 	if lockFile != "" {
 		if _, err := os.Stat(lockFile); err == nil {
-			log.Fatal("Lockfile exists, exiting")
+			panic(fmt.Errorf("%v", "Lockfile exists, exiting"))
 		} else if os.IsNotExist(err) {
 			// If the lockfile doesn't exist, create it
 			log.Debug("Lockfile doesn't exist, creating one")
 			//nolint:golint,gosec
 			if err := os.WriteFile(lockFile, []byte(""), 0644); err != nil {
-				log.Fatalf("Writing lockfile: %v", err)
+				fatalf("Writing lockfile: %v", err)
 			}
 		} else {
-			log.Fatalf("Accessing lockfile: %v", err)
+			fatalf("Accessing lockfile: %v", err)
 		}
 	}
 
@@ -1020,11 +1037,11 @@ func Run(configFilename, lockFile, version string, noConfigure, dryRun, withdraw
 	log.Debugf("Loading config from %s", configFilename)
 	configFile, err := os.ReadFile(configFilename)
 	if err != nil {
-		log.Fatalf("Reading config file: %s", err)
+		fatalf("Reading config file: %s", err)
 	}
 	c, err := Load(configFile)
 	if err != nil {
-		log.Fatal(err)
+		panic(fmt.Errorf("%v", err))
 	}
 	log.Debug("Finished loading config")
 
@@ -1033,7 +1050,7 @@ func Run(configFilename, lockFile, version string, noConfigure, dryRun, withdraw
 		var err error
 		c.NVRSASNs, err = peeringdb.NeverViaRouteServersWithFallback(c.PeeringDBQueryTimeout, c.PeeringDBAPIKey, c.CacheDirectory, offline)
 		if err != nil {
-			log.Fatalf("PeeringDB NVRS query: %s", err)
+			fatalf("PeeringDB NVRS query: %s", err)
 		}
 	}
 
@@ -1041,44 +1058,44 @@ func Run(configFilename, lockFile, version string, noConfigure, dryRun, withdraw
 	log.Debug("Loading templates from embedded filesystem")
 	err = templating.Load(embed.FS)
 	if err != nil {
-		log.Fatal(err)
+		panic(fmt.Errorf("%v", err))
 	}
 	log.Debug("Finished loading templates")
 
 	// Create cache directory
 	log.Debugf("Making cache directory %s", c.CacheDirectory)
 	if err := os.MkdirAll(c.CacheDirectory, os.FileMode(0755)); err != nil {
-		log.Fatal(err)
+		panic(fmt.Errorf("%v", err))
 	}
 
 	// Create the global output file
 	log.Debug("Creating global config")
 	globalFile, err := os.Create(path.Join(c.CacheDirectory, "bird.conf"))
 	if err != nil {
-		log.Fatalf("Create global BIRD output file: %v", err)
+		fatalf("Create global BIRD output file: %v", err)
 	}
 	log.Debug("Finished creating global config file")
 
 	// Render the global template and write to buffer
 	log.Debug("Writing global config file")
 	if err := templating.Template.ExecuteTemplate(globalFile, "global.tmpl", c); err != nil {
-		log.Fatalf("Execute global template: %v", err)
+		fatalf("Execute global template: %v", err)
 	}
 	log.Debug("Finished writing global config file")
 
 	// Remove old manual configs
 	if err := util.RemoveFileGlob(path.Join(c.CacheDirectory, "manual*.conf")); err != nil {
-		log.Fatalf("Removing old manual config files: %v", err)
+		fatalf("Removing old manual config files: %v", err)
 	}
 
 	// Copying manual configs
 	if err := util.CopyFileToGlob(path.Join(c.BIRDDirectory, "manual*.conf"), c.CacheDirectory); err != nil {
-		log.Fatalf("Copying manual config files: %v", err)
+		fatalf("Copying manual config files: %v", err)
 	}
 
 	// Remove old peer-specific configs
 	if err := util.RemoveFileGlob(path.Join(c.CacheDirectory, "AS*.conf")); err != nil {
-		log.Fatalf("Removing old peer config files: %v", err)
+		fatalf("Removing old peer config files: %v", err)
 	}
 
 	// Print global config
@@ -1104,7 +1121,7 @@ func Run(configFilename, lockFile, version string, noConfigure, dryRun, withdraw
 	// Copy config file
 	log.Debug("Copying Pathvector config file to cache directory")
 	if err := util.CopyFile(configFilename, path.Join(c.CacheDirectory, "pathvector.yml")); err != nil {
-		log.Fatalf("Copying Pathvector config file to cache directory: %v", err)
+		fatalf("Copying Pathvector config file to cache directory: %v", err)
 	}
 
 	if !dryRun {
@@ -1112,13 +1129,13 @@ func Run(configFilename, lockFile, version string, noConfigure, dryRun, withdraw
 		names := templating.ProtocolNames()
 		j, err := json.Marshal(names)
 		if err != nil {
-			log.Fatalf("Marshalling protocol names: %v", err)
+			fatalf("Marshalling protocol names: %v", err)
 		}
 		file := path.Join(c.BIRDDirectory, "protocols.json")
 		log.Debugf("Writing protocol names to %s", file)
 		//nolint:golint,gosec
 		if err := os.WriteFile(file, j, 0644); err != nil {
-			log.Fatalf("Writing protocol names: %v", err)
+			fatalf("Writing protocol names: %v", err)
 		}
 
 		// Write VRRP config
@@ -1135,11 +1152,12 @@ func Run(configFilename, lockFile, version string, noConfigure, dryRun, withdraw
 	// Delete lockfile
 	if lockFile != "" {
 		if err := os.Remove(lockFile); err != nil {
-			log.Fatalf("Removing lockfile: %v", err)
+			fatalf("Removing lockfile: %v", err)
 		}
 	}
 
 	log.Infof("Processed %d sessions over %d peers in %s", countSessions(c.Peers), len(c.Peers), time.Since(startTime).Round(time.Second))
+	return nil
 }
 
 func countSessions(peers map[string]*config.Peer) int {

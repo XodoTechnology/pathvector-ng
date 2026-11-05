@@ -28,7 +28,9 @@ the rendered output matches the live config, 1 when they differ.`,
 		}
 
 		// Render into the cache directory without applying
-		process.Run(configFile, lockFile, version, true, true, false, offline)
+		if err := process.Run(configFile, lockFile, version, true, true, false, offline); err != nil {
+			log.Fatal(err)
+		}
 
 		// diff -urN cache/ live/ — exit status 0 same, 1 differ, >1 error
 		// -I ignores the "# Update time:" header; side files that only exist in
