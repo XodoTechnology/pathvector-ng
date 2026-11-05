@@ -10,7 +10,6 @@ on:
 
 permissions:
   contents: write
-  workflows: write
 
 concurrency:
   group: auto-release
@@ -49,16 +48,18 @@ jobs:
           else patch=$((patch+1)); fi
           echo "tag=v${major}.${minor}.${patch}" >> "$GITHUB_OUTPUT"
           echo "next tag: v${major}.${minor}.${patch} (from v${latest})"
-      - name: Push tag
+      - name: Create tag
+        # Create the ref via the REST API — GitHub makes it server-side, so a
+        # GITHUB_TOKEN with only contents:write is enough even when the tagged
+        # commit modifies .github/workflows/ (a git push would be refused).
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
           tag="${{ steps.ver.outputs.tag }}"
-          # Skip if a concurrent run already published this tag
           if git ls-remote --tags origin "$tag" | grep -q .; then
             echo "Tag $tag already exists on the remote — skipping"
             exit 0
           fi
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git tag "$tag" 2>/dev/null || true
-          git push origin "refs/tags/$tag"
+          gh api --method POST "/repos/${{ github.repository }}/git/refs"             -f "ref=refs/tags/$tag" -f "sha=$GITHUB_SHA"
+          echo "created $tag"
