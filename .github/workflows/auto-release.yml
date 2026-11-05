@@ -37,6 +37,7 @@ jobs:
         id: ver
         run: |
           set -euo pipefail
+          git fetch --tags --force origin >/dev/null 2>&1 || true
           latest=$(git tag -l 'v[0-9]*.[0-9]*.[0-9]*' | sed 's/^v//' | sort -t. -k1,1n -k2,2n -k3,3n | tail -1)
           major=${latest%%.*}; rest=${latest#*.}; minor=${rest%%.*}; patch=${rest#*.}
           msg=$(git log -1 --pretty=%B)
@@ -47,7 +48,14 @@ jobs:
           echo "next tag: v${major}.${minor}.${patch} (from v${latest})"
       - name: Push tag
         run: |
+          set -euo pipefail
+          tag="${{ steps.ver.outputs.tag }}"
+          # Skip if a concurrent run already published this tag
+          if git ls-remote --tags origin "$tag" | grep -q .; then
+            echo "Tag $tag already exists on the remote — skipping"
+            exit 0
+          fi
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git tag "${{ steps.ver.outputs.tag }}"
-          git push origin "${{ steps.ver.outputs.tag }}"
+          git tag "$tag" 2>/dev/null || true
+          git push origin "refs/tags/$tag"
