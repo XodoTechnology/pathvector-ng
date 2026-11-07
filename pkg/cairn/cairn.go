@@ -14,6 +14,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 
@@ -819,6 +820,36 @@ func StaticdCheck(binary, configPath string) error {
 	}
 	log.Infof("%s", strings.TrimSpace(string(out)))
 	return nil
+}
+
+// TestedMin and TestedMax bound the Cairn releases covered by the end-to-end
+// suite (tests/cairn-e2e). Cairn is early-release/private-beta, so the tested
+// range is a single version.
+const (
+	TestedMin = "0.1.1"
+	TestedMax = "0.1.1"
+)
+
+// cairnVersionRegex matches `cairnd --version` output, e.g.
+// "cairnd 0.1.1+git7129.83a42fb0".
+var cairnVersionRegex = regexp.MustCompile(`(?i)cairn\w*\s+v?([0-9]+\.[0-9]+\.[0-9]+[^\s]*)`)
+
+// DaemonVersion reports the installed Cairn version by running `cairnd
+// --version`. It uses the configured cairnd binary.
+func DaemonVersion(c *config.Config) (string, error) {
+	bin := "/usr/sbin/cairnd"
+	if c != nil && c.CairndBinary != "" {
+		bin = c.CairndBinary
+	}
+	out, err := exec.Command(bin, "--version").CombinedOutput()
+	if err != nil {
+		return "", fmt.Errorf("cairnd --version: %w: %s", err, strings.TrimSpace(string(out)))
+	}
+	m := cairnVersionRegex.FindStringSubmatch(string(out))
+	if len(m) < 2 {
+		return "", fmt.Errorf("could not parse Cairn version from cairnd --version output")
+	}
+	return m[1], nil
 }
 
 // Ctrl runs cairnctrl with the given arguments and returns stdout.

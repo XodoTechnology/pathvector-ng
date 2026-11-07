@@ -1,4 +1,4 @@
----
+-- ---
 title: About
 sidebar_position: 1
 ---
@@ -6,6 +6,11 @@ sidebar_position: 1
 <img alt="Pathvector NG Logo" src="https://raw.githubusercontent.com/XodoTechnology/pathvector-ng/main/docs/static/img/black-border.svg" height="200" />
 
 # Pathvector NG
+
+[![Test](https://github.com/XodoTechnology/pathvector-ng/actions/workflows/test.yml/badge.svg)](https://github.com/XodoTechnology/pathvector-ng/actions/workflows/test.yml)
+[![e2e](https://github.com/XodoTechnology/pathvector-ng/actions/workflows/e2e.yml/badge.svg)](https://github.com/XodoTechnology/pathvector-ng/actions/workflows/e2e.yml)
+[![BIRD matrix](https://github.com/XodoTechnology/pathvector-ng/actions/workflows/bird-matrix.yml/badge.svg)](https://github.com/XodoTechnology/pathvector-ng/actions/workflows/bird-matrix.yml)
+[![FRR matrix](https://github.com/XodoTechnology/pathvector-ng/actions/workflows/frr-matrix.yml/badge.svg)](https://github.com/XodoTechnology/pathvector-ng/actions/workflows/frr-matrix.yml)
 
 **Pathvector NG (Next Generation)** is a community-maintained continuation of
 [Pathvector](https://github.com/natesales/pathvector), the declarative edge
@@ -97,6 +102,64 @@ requests. Those are addressed here, including (upstream issue numbers):
   as-prefs precedence over community-prefs (#198)
 * Plus the zappiehost improvements listed in [Provenance](#provenance)
 
+## Daemon compatibility
+
+Pathvector is **one binary, one config** — the routing daemon is a backend
+setting, not a separate install. Every backend renders the same peer/policy
+model and is verified by an automated matrix that runs on every change
+(`tests/bird-matrix`, `tests/frr-matrix`, `tests/e2e`, `tests/cairn-e2e`).
+
+```mermaid
+flowchart LR
+    PV["pathvector<br/>one binary · pathvector.yml"] --> GEN["generate + validate + deploy"]
+    GEN --> B{backend}
+    B -->|"backend: bird"| BD["BIRD<br/><b>v2.0.7 → v3.4.0</b><br/>15 releases · all pass"]
+    B -->|"backend: frr"| FD["FRR<br/><b>9.1.3 → 10.7.1</b><br/>7 releases · core pass"]
+    B -->|"backend: cairn"| CD["Cairn<br/><b>0.1.1</b><br/>e2e pass · private beta"]
+```
+
+| Backend | Daemon | Verified versions | Result |
+|---------|--------|-------------------|--------|
+| `bird` | BIRD | v2.0.7 – v3.4.0 (15 releases) | all pass — one known XFAIL (v2.0.7 + complex config) |
+| `frr` | FRR | frr-9.1.3 – frr-10.7.1 (7 releases) | core pass — FRR ≤ 10.0 needs `rpki-enable: false` |
+| `cairn` | Cairn | 0.1.1 | e2e pass (private beta) |
+
+The "Verified versions" column is generated from the matrix version files —
+regenerate it with `make compat` (see `tests/compat-report.sh`). To check the
+daemon installed on a router against this range, run `pathvector compat` there.
+Each matrix
+entry exercises
+config generation, the daemon's own config validation (`bird -p`,
+`vtysh -C`/`-b`, `cairnd --check`), a live daemon, and control-channel
+commands (`status`, `restart`, `diff`, metrics).
+
+Known limits, by design rather than defect:
+
+* **FRR ≤ 10.0** uses the pre-10.1 RPKI cache syntax — set `rpki-enable: false`
+  or upgrade. Everything else passes.
+* **FRR 7.x/8.x** predate libyang 2 and can't build on the modern toolchain —
+  unsupported.
+* **BIRD v2.0.7** fails only the `generate-complex` config (`transit-lock`
+  `+` AS-path mask needs ≥ 2.0.8).
+* **Cairn** is early-release/private-beta; its backend is experimental and its
+  `.deb` isn't publicly distributed yet.
+
+<details>
+<summary>Every version exercised by the matrices</summary>
+
+**BIRD** — `v2.0.7` `v2.0.12` `v2.13.1` `v2.14` `v2.15.1` `v2.16.2` `v2.17.7`
+`v2.18.4` `v2.19.3` `v2.20.0` `v3.0.5` `v3.1.9` `v3.2.4` `v3.3.3` `v3.4.0`
+
+**FRR** — `frr-9.1.3` `frr-10.0.5` `frr-10.1.5` `frr-10.2.6` `frr-10.3.4`
+`frr-10.5.5` `frr-10.7.1`
+
+**Cairn** — `0.1.1`
+
+Each entry runs config generation, the daemon's own config check, a live
+daemon, and the control commands. To add a release, append its tag to the
+matching `tests/*-matrix/versions.txt`.
+
+</details>
 
 ## Build from source
 

@@ -37,6 +37,26 @@ Regenerate this table from the matrix version files with `make compat`
 
 </details>
 
+## Checking your daemon
+
+Run `pathvector compat` on the router to query the installed daemon's version
+and compare it against the tested range:
+
+```
+$ pathvector compat
+Backend:      bird
+Daemon:       BIRD
+Version:      3.4.0
+Tested range: v2.0.7 – v3.4.0
+Status:       supported
+```
+
+Status is `supported` inside the tested range, `newer-than-tested` above it
+(probably fine, but not CI-covered — report issues), `older-than-tested` below
+the minimum, or `unreachable`/`unknown` when the daemon can't be queried. Run
+it on the router itself — `generate` is often run on a separate config host
+where the daemon isn't installed.
+
 ## What each matrix entry checks
 
 For every version in `versions.txt` the matrix:

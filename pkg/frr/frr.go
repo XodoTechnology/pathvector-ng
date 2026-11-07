@@ -27,6 +27,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -1931,6 +1932,37 @@ func Show(c *config.Config, args ...string) (string, error) {
 		return "", fmt.Errorf("vtysh %s: %s: %s", strings.Join(args, " "), err, strings.TrimSpace(string(out)))
 	}
 	return string(out), nil
+}
+
+// TestedMin and TestedMax bound the FRR releases covered by the test matrix
+// (tests/frr-matrix/versions.txt). FRR <= 10.0 additionally needs
+// `rpki-enable: false` — see docs/docs/backends.md.
+const (
+	TestedMin = "9.1.3"
+	TestedMax = "10.7.1"
+)
+
+// frrVersionRegex matches the version in vtysh's help banner, e.g.
+// "Integrated shell for FRR (version 10.2.6)."
+var frrVersionRegex = regexp.MustCompile(`(?i)version\s+v?(\d+\.\d+\.\d+)`)
+
+// DaemonVersion reports the installed FRR version by parsing vtysh's help
+// banner. It uses the configured vtysh binary and does not require the
+// daemons to be running.
+func DaemonVersion(c *config.Config) (string, error) {
+	bin := "/usr/bin/vtysh"
+	if c != nil && c.VtyshBinary != "" {
+		bin = c.VtyshBinary
+	}
+	out, err := exec.Command(bin, "--help").CombinedOutput()
+	if err != nil {
+		return "", fmt.Errorf("vtysh --help: %w: %s", err, strings.TrimSpace(string(out)))
+	}
+	m := frrVersionRegex.FindStringSubmatch(string(out))
+	if len(m) < 2 {
+		return "", fmt.Errorf("could not parse FRR version from vtysh --help output")
+	}
+	return m[1], nil
 }
 
 // NeighborInfo is a single BGP neighbor parsed from `show bgp summary json`,

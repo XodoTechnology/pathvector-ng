@@ -120,7 +120,9 @@ flowchart LR
 | `cairn` | Cairn | 0.1.1 | e2e pass (private beta) |
 
 The "Verified versions" column is generated from the matrix version files —
-regenerate it with `make compat` (see `tests/compat-report.sh`). Each matrix
+regenerate it with `make compat` (see `tests/compat-report.sh`). To check the
+daemon installed on a router against this range, run `pathvector compat` there.
+Each matrix
 entry exercises
 config generation, the daemon's own config validation (`bird -p`,
 `vtysh -C`/`-b`, `cairnd --check`), a live daemon, and control-channel

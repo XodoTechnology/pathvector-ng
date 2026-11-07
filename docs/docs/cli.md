@@ -1,4 +1,4 @@
----
+-- ---
 title: CLI Usage
 sidebar_position: 6
 ---
@@ -12,6 +12,7 @@ Usage:
 Available Commands:
   birdsh      Lightweight BIRD shell
   check       Validate configuration: render and daemon-validate without applying
+  compat      Check the routing daemon's version against the tested range
   completion  Generate the autocompletion script for the specified shell
   config      Export configuration, optionally sanitized with logknife
   diff        Show a unified diff between the rendered config and the live BIRD directory

@@ -154,6 +154,20 @@ func OlderThanSupported(birdVersion string) bool {
 	return semver.Compare(v, toSemver(supportedMin)) == -1
 }
 
+// TestedMin and TestedMax bound the BIRD releases covered by the test
+// matrix (tests/bird-matrix/versions.txt). TestedMin equals supportedMin.
+const (
+	TestedMin = "2.0.7"
+	TestedMax = "3.4.0"
+)
+
+// DaemonVersion queries the running BIRD's version over its control socket,
+// returning "" when it can't be determined.
+func DaemonVersion(socket string) (string, error) {
+	_, version, err := RunCommand("", socket)
+	return version, err
+}
+
 // runCommand runs a BIRD command over an established BIRD control connection
 func runCommand(conn io.ReadWriter, command string) (string, string, error) {
 	resp, err := Read(conn)
