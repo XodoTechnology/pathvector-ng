@@ -412,3 +412,42 @@ func TestParseNeighborsEmpty(t *testing.T) {
 		t.Fatalf("expected no neighbors, got %+v", neighbors)
 	}
 }
+
+// Regression: enforce-peer-nexthop must reject routes whose next hop is NOT
+// the peer. The prefix-list is inverted (deny peer addr, permit rest) so the
+// route-map's `deny ... match ip next-hop prefix-list` fires only on foreign
+// next hops; the old form permitted the peer addr, denying every valid route.
+func TestPeerConfigEnforcePeerNexthop(t *testing.T) {
+	c := testConfig(t)
+	p := testPeer(t, []string{"203.0.113.12"}, func(p *config.Peer) {
+		p.EnforcePeerNexthop = boolp(true)
+	})
+	pb, _ := PeerConfig("nhpeer", p, c)
+	if !strings.Contains(pb.Objects, "seq 5 deny 203.0.113.12/32") {
+		t.Errorf("next-hop list must deny the peer address:\n%s", pb.Objects)
+	}
+	if !strings.Contains(pb.Objects, "seq 10 permit 0.0.0.0/0 le 32") {
+		t.Errorf("next-hop list must permit everything else:\n%s", pb.Objects)
+	}
+	if strings.Contains(pb.Objects, "permit 203.0.113.12/32") {
+		t.Error("next-hop list must not permit the peer address")
+	}
+	if !strings.Contains(pb.Objects, "match ip next-hop prefix-list") {
+		t.Error("import route-map does not reference the next-hop prefix-list")
+	}
+}
+
+// Regression: soft-reconfiguration inbound must be rendered inside each
+// address-family block — the neighbor-level form only covers IPv4 unicast,
+// leaving IPv6 received/filtered routes invisible.
+func TestPeerConfigSoftReconfiguration(t *testing.T) {
+	c := testConfig(t)
+	p := testPeer(t, []string{"203.0.113.12", "2001:db8::12"}, nil)
+	pb, _ := PeerConfig("dual", p, c)
+	if !strings.Contains(pb.AF4, "neighbor 203.0.113.12 soft-reconfiguration inbound") {
+		t.Errorf("v4 neighbor missing per-AF soft-reconfiguration:\n%s", pb.AF4)
+	}
+	if !strings.Contains(pb.AF6, "neighbor 2001:db8::12 soft-reconfiguration inbound") {
+		t.Errorf("v6 neighbor missing per-AF soft-reconfiguration:\n%s", pb.AF6)
+	}
+}

@@ -174,8 +174,8 @@ func TestNeighborBlocksTTLMultihopConflict(t *testing.T) {
 	if strings.Contains(out, "multihop") {
 		t.Error("multihop emitted alongside ttl_security")
 	}
-	if !strings.Contains(out, "ttl_security = 255") {
-		t.Error("ttl_security missing")
+	if !strings.Contains(out, "ttl_security = 1") {
+		t.Error("ttl_security missing (hop count)")
 	}
 	// the conflict warning is reported by PeerPolicy's unsupported list
 	_, uns := PeerPolicy("conflict", p, c)
@@ -221,6 +221,44 @@ func TestPeerPolicyImportExport(t *testing.T) {
 		if !strings.Contains(out, want) {
 			t.Errorf("PeerPolicy missing %q", want)
 		}
+	}
+}
+
+func TestNeighborBlocksSessionFields(t *testing.T) {
+	c := testConfig(t)
+	p := testPeer(t, func(p *config.Peer) {
+		*p.EnforceFirstAS = false
+		*p.AnnounceDefault = true
+		p.LocalASN = intp(65001)
+		*p.TTLSecurity = true
+	})
+	out, _ := NeighborBlocks("sess", p, c)
+	for _, want := range []string{
+		"enforce_first_as = false", // explicit false must be emitted (cairn default is true)
+		"default_originate = true",
+		"local_as = 65001",
+		"ttl_security = 1",
+		"keep_received_routes = true", // always on, not just with import-limit
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("NeighborBlocks missing %q", want)
+		}
+	}
+}
+
+func TestPolicyHeaderAsPathDefines(t *testing.T) {
+	c := testConfig(t)
+	c.BogonASNs = []string{"0", "64496..64511", "64512..65534"}
+	c.BlocklistASNs = []uint32{64497, 64498}
+	out := PolicyHeader(c)
+	if !strings.Contains(out, "define PV_BOGON_ASNS = [ 0, 64496..64511, 64512..65534 ];") {
+		t.Errorf("bogon ASNs not emitted as number-set define:\n%s", out)
+	}
+	if !strings.Contains(out, "define PV_BLOCKLIST_ASNS = [ 64497, 64498 ];") {
+		t.Errorf("blocklist ASNs not emitted as number-set define:\n%s", out)
+	}
+	if strings.Contains(out, "as-path access-list") {
+		t.Error("as-path access-list regex must not be used for ASN sets")
 	}
 }
 

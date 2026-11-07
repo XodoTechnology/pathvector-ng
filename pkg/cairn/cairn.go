@@ -255,9 +255,15 @@ func GlobalHeader(c *config.Config) string {
 
 	b.WriteString("[fib]\n")
 	b.WriteString("enabled = true\n")
-	if c.Kernel != nil {
-		fmt.Fprintf(&b, "table = %d\n", c.Kernel.Table)
+	// kernel.table unset (0) means the main table, like BIRD's kernel
+	// protocol omitting `table`. Linux RT_TABLE_MAIN is 254 — cairnd's
+	// documented example value. Table 0 itself is RT_TABLE_UNSPEC and
+	// cannot be programmed.
+	table := 254
+	if c.Kernel != nil && c.Kernel.Table != 0 {
+		table = c.Kernel.Table
 	}
+	fmt.Fprintf(&b, "table = %d\n", table)
 	b.WriteString("metric = 20\n")
 	b.WriteString("resolve_via_default = false\n")
 	if c.Source4 != "" {
@@ -337,6 +343,14 @@ func NeighborBlocks(peerName string, p *config.Peer, c *config.Config) (string, 
 		} else if af == "ipv6-unicast" && derefStr(p.Listen6) != "" {
 			fmt.Fprintf(&b, "local_address = %q\n", derefStr(p.Listen6))
 		}
+		// local-asn overrides the AS this session uses (OPEN, eBGP prepend,
+		// iBGP/eBGP determination).
+		localAS := derefInt(p.LocalASN)
+		if localAS == 0 {
+			localAS = c.ASN
+		} else {
+			fmt.Fprintf(&b, "local_as = %d\n", localAS)
+		}
 		if derefInt(p.LocalPort) != 179 || derefInt(p.NeighborPort) != 179 {
 			unsupported = append(unsupported, "local-port/neighbor-port")
 		}
@@ -350,7 +364,7 @@ func NeighborBlocks(peerName string, p *config.Peer, c *config.Config) (string, 
 		fmt.Fprintf(&b, "families = [%s]\n", quoteJoin(families))
 
 		// next-hop-self: peer-level flag, or per-AF eBGP/iBGP variants.
-		ebgp := derefInt(p.ASN) != c.ASN
+		ebgp := derefInt(p.ASN) != localAS
 		nhs := derefBool(p.NextHopSelf) ||
 			(derefBool(p.NextHopSelfEBGP) && ebgp) ||
 			(derefBool(p.NextHopSelfIBGP) && !ebgp)
@@ -387,10 +401,15 @@ func NeighborBlocks(peerName string, p *config.Peer, c *config.Config) (string, 
 			b.WriteString("add_path_receive = true\n")
 		}
 		if derefBool(p.TTLSecurity) {
-			b.WriteString("ttl_security = 255\n")
+			// ttl_security is a hop count, not a TTL value: 1 = directly
+			// connected peer (equivalent of BIRD's `ttl security on`).
+			b.WriteString("ttl_security = 1\n")
 		}
-		if derefBool(p.EnforceFirstAS) {
-			b.WriteString("enforce_first_as = true\n")
+		// cairn defaults enforce_first_as to true like pathvector, but an
+		// explicit false (e.g. route-server clients) must be emitted.
+		fmt.Fprintf(&b, "enforce_first_as = %t\n", derefBool(p.EnforceFirstAS))
+		if derefBool(p.AnnounceDefault) {
+			b.WriteString("default_originate = true\n")
 		}
 		if derefBool(p.Disabled) {
 			unsupported = append(unsupported, "disabled (use cairnctrl shutdown)")
@@ -410,6 +429,11 @@ func NeighborBlocks(peerName string, p *config.Peer, c *config.Config) (string, 
 		if derefBool(p.L3VPN) {
 			unsupported = append(unsupported, "l3vpn")
 		}
+		// keep_received_routes retains routes rejected by import policy so
+		// `cairnctrl routes --filtered` can show them (BIRD keep-filtered
+		// parity — the report/LG layers rely on it) and so policy changes
+		// re-apply without asking the neighbor to resend.
+		b.WriteString("keep_received_routes = true\n")
 		// Import limits → session prefix limit (approximation: cairn counts
 		// received prefixes, pathvector counts post-filter RIB entries).
 		limit := derefInt(p.ImportLimit4)
@@ -418,9 +442,6 @@ func NeighborBlocks(peerName string, p *config.Peer, c *config.Config) (string, 
 		}
 		if limit > 0 {
 			fmt.Fprintf(&b, "max_prefixes = %d\n", limit)
-			// BIRD's import-limit requires keep-filtered so rejected routes
-			// stay inspectable; cairn's equivalent keeps received routes.
-			b.WriteString("keep_received_routes = true\n")
 			if derefStr(p.ImportLimitTripAction) == "warn" {
 				b.WriteString("max_prefixes_warning_only = true\n")
 			}
@@ -469,10 +490,11 @@ func PolicyHeader(c *config.Config) string {
 	writePrefixList(&b, "PV_BOGON", b4, b6)
 	b.WriteString("\n")
 
-	// Bogon AS paths (filter-bogon-asns): unanchored contains-match.
+	// Bogon AS paths (filter-bogon-asns): number set — cairn set syntax
+	// accepts the same `N` and `lo..hi` members as BIRD's AS sets.
 	if len(c.BogonASNs) > 0 {
-		fmt.Fprintf(&b, "bgp as-path access-list PV_BOGON_ASNS permit (^| )(%s)( |$)\n\n",
-			strings.Join(c.BogonASNs, "|"))
+		fmt.Fprintf(&b, "define PV_BOGON_ASNS = [ %s ];\n\n",
+			strings.Join(c.BogonASNs, ", "))
 	}
 
 	// Global blocklist.
@@ -486,8 +508,8 @@ func PolicyHeader(c *config.Config) string {
 		for i, a := range c.BlocklistASNs {
 			asns[i] = fmt.Sprint(a)
 		}
-		fmt.Fprintf(&b, "bgp as-path access-list PV_BLOCKLIST_ASNS permit (^| )(%s)( |$)\n\n",
-			strings.Join(asns, "|"))
+		fmt.Fprintf(&b, "define PV_BLOCKLIST_ASNS = [ %s ];\n\n",
+			strings.Join(asns, ", "))
 	}
 
 	// Out-of-bounds prefix lengths (filter-prefix-length):
@@ -790,11 +812,21 @@ func Staticd(c *config.Config) string {
 		fmt.Fprintf(&b, "source_ipv6 = %q\n", c.Source6)
 	}
 	if c.Kernel != nil {
+		// staticd routes omit `table` for the main table (its documented
+		// default); only non-main kernel tables are emitted explicitly.
 		for prefix, nh := range c.Kernel.Statics4 {
-			fmt.Fprintf(&b, "\n[[route]]\nprefix = %q\ntable = %d\nnext_hop = [{ address = %q }]\n", prefix, c.Kernel.Table, nh)
+			fmt.Fprintf(&b, "\n[[route]]\nprefix = %q", prefix)
+			if c.Kernel.Table != 0 {
+				fmt.Fprintf(&b, "\ntable = %d", c.Kernel.Table)
+			}
+			fmt.Fprintf(&b, "\nnext_hop = [{ address = %q }]\n", nh)
 		}
 		for prefix, nh := range c.Kernel.Statics6 {
-			fmt.Fprintf(&b, "\n[[route]]\nprefix = %q\ntable = %d\nnext_hop = [{ address = %q }]\n", prefix, c.Kernel.Table, nh)
+			fmt.Fprintf(&b, "\n[[route]]\nprefix = %q", prefix)
+			if c.Kernel.Table != 0 {
+				fmt.Fprintf(&b, "\ntable = %d", c.Kernel.Table)
+			}
+			fmt.Fprintf(&b, "\nnext_hop = [{ address = %q }]\n", nh)
 		}
 	}
 	return b.String()
@@ -822,6 +854,7 @@ func StaticdCheck(binary, configPath string) error {
 	return nil
 }
 
+// Ctrl runs cairnctrl with the given arguments and returns stdout.
 // TestedMin and TestedMax bound the Cairn releases covered by the end-to-end
 // suite (tests/cairn-e2e). Cairn is early-release/private-beta, so the tested
 // range is a single version.
@@ -852,7 +885,6 @@ func DaemonVersion(c *config.Config) (string, error) {
 	return m[1], nil
 }
 
-// Ctrl runs cairnctrl with the given arguments and returns stdout.
 func Ctrl(c *config.Config, args ...string) (string, error) {
 	full := append([]string{"-s", c.CairnSocket}, args...)
 	cmd := exec.Command(c.CairnCtrlBinary, full...)

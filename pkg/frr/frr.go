@@ -672,6 +672,9 @@ func PeerConfig(peerName string, p *config.Peer, c *config.Config) (PeerBlocks, 
 		}
 		// BIRD advertises all community flavours; FRR must be told explicitly.
 		fmt.Fprintf(&nb, " neighbor %s send-community all\n", addr)
+		// soft-reconfiguration inbound is rendered per address-family below —
+		// at neighbor level it only covers IPv4 unicast, leaving IPv6
+		// received/filtered routes invisible to reports and the looking glass.
 		if derefBool(p.AddPathTx) {
 			fmt.Fprintf(&nb, " neighbor %s addpath-tx-all-paths\n", addr)
 		}
@@ -701,6 +704,11 @@ func PeerConfig(peerName string, p *config.Peer, c *config.Config) (PeerBlocks, 
 				dst = &a6
 			}
 			fmt.Fprintf(dst, "  neighbor %s activate\n", af.addr)
+			// Keep the Adj-RIB-In so `received-routes`/`filtered-routes` work —
+			// the FRR equivalent of BIRD's keep-filtered routes. Must be set
+			// inside each address-family: the neighbor-level form only covers
+			// IPv4 unicast.
+			fmt.Fprintf(dst, "  neighbor %s soft-reconfiguration inbound\n", af.addr)
 			fmt.Fprintf(dst, "  neighbor %s route-map %s in\n", af.addr, fr.importRMName)
 			fmt.Fprintf(dst, "  neighbor %s route-map %s out\n", af.addr, fr.exportRMName)
 			if fr.outPL != "" {
@@ -810,19 +818,26 @@ func renderFamily(peerName string, idx int, addr, fam string, p *config.Peer, c 
 	}
 
 	// ---------- enforce-peer-nexthop ----------
+	// BIRD rejects routes whose next hop is not the peer address. A route-map
+	// deny cannot negate a prefix-list match, so the list is inverted: it
+	// denies the peer address itself and permits everything else, making the
+	// seq-30 `deny ... match ip next-hop prefix-list` clause fire exactly on
+	// routes with a foreign next hop.
 	nhName := ""
 	if derefBool(p.EnforcePeerNexthop) {
 		if v6 {
 			if isV6(addr) {
 				nhName = fmt.Sprintf("%s_%d_NH_%s", base, idx, sfx)
-				writePrefixList6(&ob, nhName, []string{addr + "/128"})
+				fmt.Fprintf(&ob, "ipv6 prefix-list %s seq 5 deny %s/128\n", nhName, addr)
+				fmt.Fprintf(&ob, "ipv6 prefix-list %s seq 10 permit ::/0 le 128\n", nhName)
 			} else {
 				warns = append(warns, "enforce-peer-nexthop with IPv4 session carrying IPv6 routes")
 			}
 		} else {
 			if !isV6(addr) {
 				nhName = fmt.Sprintf("%s_%d_NH_%s", base, idx, sfx)
-				writePrefixList4(&ob, nhName, []string{addr + "/32"})
+				fmt.Fprintf(&ob, "ip prefix-list %s seq 5 deny %s/32\n", nhName, addr)
+				fmt.Fprintf(&ob, "ip prefix-list %s seq 10 permit 0.0.0.0/0 le 32\n", nhName)
 			} else {
 				warns = append(warns, "enforce-peer-nexthop with IPv6 session carrying IPv4 routes")
 			}
