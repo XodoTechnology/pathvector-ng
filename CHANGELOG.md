@@ -27,7 +27,11 @@ from `main` once the e2e suite passes; PR titles feed the generated release note
   policy (allow-lists, AS-sets, bogons, RPKI, local-pref, communities,
   prepends, clear-path, blackhole, kernel export + SRD communities) is
   translated to route-map semantics; BIRD-only features warn rather than
-  silently drop. `pathvector metrics` is not yet implemented for FRR.
+  silently drop. `pathvector metrics` works on FRR too: it polls
+  `vtysh -c "show bgp summary json"` and exports the same
+  `pathvector_protocol_*`/`pathvector_bgp_session_info` series as BIRD (plus
+  `pathvector_frr_up` as the daemon health gauge, with an `afi` label keeping
+  dual-stack neighbors distinct).
 
 - **FRR version matrix** — new `tests/frr-matrix/` harness builds FRR releases
   from source in Docker (only `bgpd`/`zebra`/`staticd`/`vtysh` + the
@@ -45,6 +49,13 @@ from `main` once the e2e suite passes; PR titles feed the generated release note
   `v2.0.7` … `v3.4.0`, spanning every BIRD 2.x and 3.x release line (adds
   v2.13.1, v2.16.2, v2.18.4, v2.20.0 and the v3.0.5–v3.4.0 lines). The
   generated configuration is valid across the 2.x→3.x boundary.
+
+- **E2E coverage expansion** — `tests/e2e/` now runs a five-container
+  dual-stack lab (added an IPv6 BGP session, an IRR-filtered peer, an IRR
+  whois stub, and a deterministic `bgpq4` stub). It verifies IPv4+IPv6 route
+  propagation, `filter-irr` accepting a listed prefix while rejecting an
+  unlisted one, `verify-irr-policy`, the route optimizer lowering
+  `bgp_local_pref`, and all `pathvector` commands + metrics — 17 assertions.
 
 ## v0.1 — first Pathvector NG release
 

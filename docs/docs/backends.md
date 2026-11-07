@@ -108,12 +108,22 @@ Command mapping:
 | `diff` | cache vs `bird-directory` | cache `frr.conf` vs `frr-directory/frr.conf` |
 | `status` | `birdc show protocols` | `vtysh -c "show bgp summary json"` |
 | `restart` | `birdc restart` | `vtysh -c "clear bgp <neighbor>"` |
-| `metrics` | pathvector `/metrics` from birdc | not yet supported |
+| `metrics` | pathvector `/metrics` from birdc | pathvector `/metrics` from `vtysh` |
 
 Deploy is a config push: `frr.conf` + `pathvector.yml` are copied into
 `frr-directory` and `vtysh -b` distributes them to the running daemons. A
 plain file copy always happens; `vtysh -b` is best-effort (it only warns if
 FRR is not running, since the file is still picked up on next start).
+
+`pathvector metrics` polls `vtysh -c "show bgp summary json"` on each scrape
+and exports the same `pathvector_protocol_up`, `pathvector_protocol_routes`
+and `pathvector_bgp_session_info` series as the BIRD exporter, plus
+`pathvector_frr_up` as the daemon health gauge (`pathvector_bird_up` on BIRD).
+Because FRR reports one neighbor row per address family under a single peer
+name, the FRR series carry an `afi` label (`ipv4-unicast`, `ipv6-unicast`, …)
+to keep dual-stack sessions distinct — BIRD instead encodes the family in the
+protocol `name`, and its `table` label is the BIRD routing-table name (a
+different concept), so the label sets aren't identical across backends.
 
 ### FRR-specific settings
 
@@ -156,5 +166,4 @@ generate time: raw BIRD filter snippets (`session-global`, `pre/post-import`,
 `confederation`, `filter-aspa`/`filter-as-set`/`filter-transit-asns`,
 `blackhole-*` communities, `filter-never-via-route-servers`, `remove-private-as`
 on iBGP sessions, VRRP/BFD/MRT instances, `keepalived-config`, global
-`source4`/`source6`, and `authorized-providers` (ASPA). `pathvector metrics`
-is not yet implemented for the FRR backend.
+`source4`/`source6`, and `authorized-providers` (ASPA).

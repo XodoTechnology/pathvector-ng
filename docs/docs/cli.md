@@ -11,7 +11,7 @@ Usage:
 
 Available Commands:
   birdsh      Lightweight BIRD shell
-  check       Validate configuration: render and BIRD-validate without applying
+  check       Validate configuration: render and daemon-validate without applying
   completion  Generate the autocompletion script for the specified shell
   config      Export configuration, optionally sanitized with logknife
   diff        Show a unified diff between the rendered config and the live BIRD directory
@@ -19,7 +19,7 @@ Available Commands:
   generate    Generate router configuration
   help        Help about any command
   match       Find common IXPs for a given ASN
-  metrics     Serve BIRD protocol state and route counts in Prometheus format on /metrics
+  metrics     Serve routing-daemon protocol state and route counts in Prometheus format on /metrics
   optimizer   Start optimization daemon
   restart     Restart BIRD protocols
   status      Show protocol status
