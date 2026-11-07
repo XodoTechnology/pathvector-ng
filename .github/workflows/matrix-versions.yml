@@ -1,0 +1,62 @@
+name: matrix-versions
+
+# Keeps tests/{bird,frr}-matrix/versions.txt current: bumps each tracked
+# minor line to its newest patch, adds new minor lines for the current
+# major, and reports (but does not add) brand-new upstream majors. When
+# versions.txt would change it opens a PR — the matrix workflows run on
+# pull_request, so the new versions are built and tested before merge.
+#
+# tests/update-matrix-versions.sh holds the reconciliation rules.
+
+on:
+  schedule:
+    - cron: "0 6 * * 1" # Mondays 06:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  bump:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Reconcile versions.txt with upstream
+        id: bump
+        run: |
+          bash tests/update-matrix-versions.sh --write
+          if git diff --quiet -- \
+              tests/bird-matrix/versions.txt tests/frr-matrix/versions.txt; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            git --no-pager diff -- \
+              tests/bird-matrix/versions.txt tests/frr-matrix/versions.txt
+          fi
+
+      - name: Open pull request
+        if: steps.bump.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          branch="bot/matrix-versions"
+          git checkout -b "$branch"
+          git add tests/bird-matrix/versions.txt tests/frr-matrix/versions.txt
+          git commit -m "chore(tests): bump daemon matrix versions"
+          git push --force-with-lease -u origin "$branch"
+          # Reuse the open PR if one already exists for this branch.
+          if ! gh pr view "$branch" --json number >/dev/null 2>&1; then
+            gh pr create --base dev --head "$branch" \
+              --title "chore(tests): bump daemon matrix versions" \
+              --body "Automated reconciliation of \`tests/*-matrix/versions.txt\` with upstream BIRD/FRR releases.
+
+          - Each tracked minor line bumped to its newest stable patch.
+          - New minor lines added for the current major (e.g. a newly released FRR 10.x).
+          - Brand-new upstream majors are only reported in the workflow log, not added.
+
+          The matrix workflows run on this PR, so merge only if they pass."
+          fi
