@@ -14,7 +14,7 @@ IRR, communities, policies, the optimizer — is shared by every backend.
 |---------|---------------|-----------------|--------|
 | `bird` (default) | BIRD `*.conf` | `birdc` socket | Full feature set |
 | `cairn` | `cairnd.toml` + `policy.conf` + `staticd.toml` | `cairnctrl` socket | Core feature set (see below) |
-| `frr` | — | — | Planned |
+| `frr` | `frr.conf` | `vtysh` | Core feature set (see below) |
 
 Set it at the top level of `pathvector.yml`:
 
@@ -80,3 +80,81 @@ Session-role conflicts Cairn enforces (`rr-client` on eBGP, `rs-client` /
 by dropping the invalid option with a warning.
 
 Cairn is early-release software; treat `backend: cairn` as experimental.
+
+## FRR backend
+
+With `backend: frr`, `pathvector generate` renders a single integrated
+**`frr.conf`** in Cisco-style syntax: a `router bgp` block with per-neighbor
+sessions (split into `address-family ipv4 unicast` / `ipv6 unicast`),
+`route-map`s for import/export policy, `ip prefix-list`s, `ip as-path
+access-list`s, `bgp community-list`s and `bgp large-community-list`s, an
+`rpki` node for RTR caches, plus `ip route`/`ip protocol bgp route-map`
+statements for kernel export. Validation uses `vtysh -C -f` and deployment
+copies the file into `frr-directory` and issues `vtysh -b` to push it to
+running daemons.
+
+Peer options map onto FRR neighbor/route-map primitives where they exist
+(`password`, `multihop`, `ttl-security`, `add-path-*`, `next-hop-self`,
+`maximum-prefix`, per-family limits, communities, prepends, `remove-private-as`,
+`default-originate`, RPKI `match rpki`, kernel export route-maps). BIRD-only
+constructs are expressed through route-map sequences or reported as warnings
+— never silently dropped.
+
+Command mapping:
+
+| Command | BIRD backend | FRR backend |
+|---------|--------------|-------------|
+| `generate` / `check` | `bird -p` validation | `vtysh -C -f` validation |
+| `diff` | cache vs `bird-directory` | cache `frr.conf` vs `frr-directory/frr.conf` |
+| `status` | `birdc show protocols` | `vtysh -c "show bgp summary json"` |
+| `restart` | `birdc restart` | `vtysh -c "clear bgp <neighbor>"` |
+| `metrics` | pathvector `/metrics` from birdc | not yet supported |
+
+Deploy is a config push: `frr.conf` + `pathvector.yml` are copied into
+`frr-directory` and `vtysh -b` distributes them to the running daemons. A
+plain file copy always happens; `vtysh -b` is best-effort (it only warns if
+FRR is not running, since the file is still picked up on next start).
+
+### FRR-specific settings
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `frr-directory` | `/etc/frr/` | Where `frr.conf` and `pathvector.yml` are deployed |
+| `vtysh-binary` | `/usr/bin/vtysh` | Path to `vtysh` (used by `check`/`status`/`restart`/deploy) |
+
+### RPKI module note
+
+FRR builds RPKI as a loadable module (`bgpd_rpki`), not into `bgpd` itself.
+Pathvector emits the standard `rpki`/`rpki cache tcp` config, which `bgpd`
+only accepts when started with `-M bgpd_rpki` (and the module directory
+available). Most packaged FRR builds ship and auto-load this module; a
+minimal source build may need the flag. `vtysh -C` validates the syntax
+either way.
+
+### Version compatibility
+
+The generated config targets **FRR ≥ 10.1**. `tests/frr-matrix/` builds a
+spread of releases from source and smoke-tests them (see its README for the
+full results); the currently-tested set is `frr-9.1.3` through `frr-10.7.1`.
+
+Two version-specific caveats:
+
+- **RPKI (`rpki cache`).** Pathvector emits `rpki cache tcp <host> <port>`
+  (the `tcp`/`ssh` keywords were added in FRR 10.1). FRR ≤ 10.0 uses
+  `rpki cache <host> <port>` instead and rejects the newer form, so on those
+  versions set `rpki-enable: false` (RPKI is optional) — everything else is
+  unaffected.
+- **FRR ≤ 8.x** predates libyang 2 and Python 3.13-era APIs; it is not
+  covered by the matrix and is not expected to work without a legacy build
+  environment.
+
+### Unsupported on FRR (warned, not silently dropped)
+
+Peer/global features with no clean FRR equivalent are logged as warnings at
+generate time: raw BIRD filter snippets (`session-global`, `pre/post-import`,
+`pre-export*`, `pre-import-accept`), `prefer-older-routes`, `transit-lock`,
+`confederation`, `filter-aspa`/`filter-as-set`/`filter-transit-asns`,
+`blackhole-*` communities, `filter-never-via-route-servers`, `remove-private-as`
+on iBGP sessions, VRRP/BFD/MRT instances, `keepalived-config`, global
+`source4`/`source6`, and `authorized-providers` (ASPA). `pathvector metrics`
+is not yet implemented for the FRR backend.

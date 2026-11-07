@@ -14,7 +14,35 @@ from `main` once the e2e suite passes; PR titles feed the generated release note
   BIRD backend; unsupported features warn instead of silently dropping, and
   Cairn-enforced session-role conflicts (rr-client/rs-client/allowas-in,
   ttl-security+multihop) are resolved with warnings. Experimental — Cairn is
-  early-release. FRR backend field reserved (`backend: frr`, planned).
+  early-release.
+
+- **FRR backend (`backend: frr`)** — Pathvector NG now renders and manages
+  [FRR](https://frrouting.org) natively: a single integrated `frr.conf`
+  (`router bgp` + per-AF neighbors, route-maps, prefix-lists, as-path
+  access-lists, community/large-community lists, `rpki` node, kernel-export
+  route-maps), validated with `vtysh -C -f` before deploy, deployed to
+  `frr-directory` and pushed with `vtysh -b`. `status`/`status --json` read
+  `show bgp summary json`, `restart` maps to `clear bgp <neighbor>`, and
+  `diff` compares the generated `frr.conf` against the live one. Import/export
+  policy (allow-lists, AS-sets, bogons, RPKI, local-pref, communities,
+  prepends, clear-path, blackhole, kernel export + SRD communities) is
+  translated to route-map semantics; BIRD-only features warn rather than
+  silently drop. `pathvector metrics` is not yet implemented for FRR.
+
+- **FRR version matrix** — new `tests/frr-matrix/` harness builds FRR releases
+  from source in Docker (only `bgpd`/`zebra`/`staticd`/`vtysh` + the
+  `bgpd_rpki` module) and smoke-tests `generate` → `vtysh -C` → live daemon
+  boot + `vtysh -b` + BGP neighbor verification across `frr-9.1.3` …
+  `frr-10.7.1`. Older releases that need a different libyang build their own
+  (the `TAG LIBYANG_REF` second column in `versions.txt`); `frr-7.x`/`8.x`
+  are excluded (they predate libyang 2 and Python 3.13). `make frr-matrix`
+  runs it locally; `.github/workflows/frr-matrix.yml` runs one job per
+  version and gates stable releases (`release.yml`) on both matrices.
+  Known incompatibilities live in `tests/frr-matrix/xfail.txt` — notably the
+  `rpki cache tcp` syntax (FRR ≥ 10.1 only) on `frr-9.1.3`/`frr-10.0.5`.
+
+- **BIRD matrix expansion** — `tests/bird-matrix/versions.txt` now covers
+  `v2.0.7` … `v2.20.0` (adds v2.13.1, v2.16.2, v2.18.4, v2.20.0).
 
 ## v0.1 — first Pathvector NG release
 
