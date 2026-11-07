@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # End-to-end smoke test: pathvector render/apply inside a real BIRD container,
-# an eBGP peer, and the flask PeeringDB stub. Run from the repo root.
+# IPv4+IPv6 eBGP peers (one IRR-filtered), the route optimizer, and the flask
+# PeeringDB stub. Run from the repo root.
 set -euo pipefail
 
 COMPOSE="docker compose -p pv-e2e -f tests/e2e/docker-compose.yml"
@@ -16,25 +17,36 @@ go build -o tests/e2e/pathvector .
 $COMPOSE build --quiet
 $COMPOSE up -d --wait || $COMPOSE up -d
 
-echo "== connectivity & BGP session =="
-# wait for BIRD socket, then for the BGP session to establish (up to 60s)
+echo "== connectivity & BGP sessions =="
+# wait for BIRD sockets, then for the BGP sessions to establish (up to 60s)
 for i in $(seq 1 30); do $COMPOSE exec -T peer birdc show status >/dev/null 2>&1 && break; sleep 2; done
-est=0
+est4=0; est6=0; estirr=0
 for i in $(seq 1 30); do
-  $COMPOSE exec -T peer birdc show protocols all to_router 2>/dev/null | grep -q "Established" && { est=1; break; }
+  $COMPOSE exec -T peer birdc show protocols all to_router 2>/dev/null | grep -q "Established" && est4=1
+  $COMPOSE exec -T peer birdc show protocols all to_router6 2>/dev/null | grep -q "Established" && est6=1
+  $COMPOSE exec -T peer-irr birdc show protocols all to_router 2>/dev/null | grep -q "Established" && estirr=1
+  [ "$est4" = 1 ] && [ "$est6" = 1 ] && [ "$estirr" = 1 ] && break
   sleep 2
 done
 check "peer bird socket up"   $COMPOSE exec -T peer birdc show status
-[ "$est" = 1 ] \
-  && { echo "  PASS BGP session Established"; pass=$((pass+1)); } \
-  || { echo "  FAIL BGP session Established"; $COMPOSE exec -T peer birdc show protocols all to_router || true; fail=$((fail+1)); }
+[ "$est4" = 1 ] \
+  && { echo "  PASS BGP IPv4 session Established"; pass=$((pass+1)); } \
+  || { echo "  FAIL BGP IPv4 session Established"; $COMPOSE exec -T peer birdc show protocols all to_router || true; fail=$((fail+1)); }
+[ "$est6" = 1 ] \
+  && { echo "  PASS BGP IPv6 session Established"; pass=$((pass+1)); } \
+  || { echo "  FAIL BGP IPv6 session Established"; $COMPOSE exec -T peer birdc show protocols all to_router6 || true; fail=$((fail+1)); }
+[ "$estirr" = 1 ] \
+  && { echo "  PASS IRR peer BGP session Established"; pass=$((pass+1)); } \
+  || { echo "  FAIL IRR peer BGP session Established"; $COMPOSE exec -T peer-irr birdc show protocols all to_router || true; fail=$((fail+1)); }
 
 echo "== route propagation =="
-imp=0; exp=0
-for i in $(seq 1 15); do
+imp=0; exp=0; imp6=0; exp6=0
+for i in $(seq 1 20); do
   $COMPOSE exec -T router birdc show route 185.121.170.0/24 all 2>/dev/null | grep -q "185.121.170.0/24" && imp=1
   $COMPOSE exec -T peer birdc show route 203.0.113.0/24 all 2>/dev/null | grep -q "203.0.113.0/24" && exp=1
-  [ "$imp" = 1 ] && [ "$exp" = 1 ] && break
+  $COMPOSE exec -T router birdc show route 2001:6464:1::/48 all 2>/dev/null | grep -q "2001:6464:1::/48" && imp6=1
+  $COMPOSE exec -T peer birdc show route 2001:6464:2::/64 all 2>/dev/null | grep -q "2001:6464:2::/64" && exp6=1
+  [ "$imp" = 1 ] && [ "$exp" = 1 ] && [ "$imp6" = 1 ] && [ "$exp6" = 1 ] && break
   sleep 2
 done
 [ "$imp" = 1 ] \
@@ -43,6 +55,46 @@ done
 [ "$exp" = 1 ] \
   && { echo "  PASS originated prefix exported to peer"; pass=$((pass+1)); } \
   || { echo "  FAIL originated prefix exported to peer"; $COMPOSE exec -T peer birdc show route all | head -10; fail=$((fail+1)); }
+[ "$imp6" = 1 ] \
+  && { echo "  PASS peer IPv6 prefix imported on router"; pass=$((pass+1)); } \
+  || { echo "  FAIL peer IPv6 prefix imported on router"; $COMPOSE exec -T router birdc show route all | head -10; fail=$((fail+1)); }
+[ "$exp6" = 1 ] \
+  && { echo "  PASS originated IPv6 prefix exported to peer"; pass=$((pass+1)); } \
+  || { echo "  FAIL originated IPv6 prefix exported to peer"; $COMPOSE exec -T peer birdc show route all | head -10; fail=$((fail+1)); }
+
+echo "== IRR filtering =="
+# The IRR peer announces 185.121.172.0/24 (in the as-set -> accepted) and
+# 185.121.173.0/24 (not in the as-set -> rejected by filter-irr).
+irr_ok=0; irr_bad=0
+for i in $(seq 1 15); do
+  $COMPOSE exec -T router birdc show route 185.121.172.0/24 all 2>/dev/null | grep -q "185.121.172.0/24" && irr_ok=1
+  if $COMPOSE exec -T router birdc show route 185.121.173.0/24 all 2>/dev/null | grep -q "185.121.173.0/24"; then irr_bad=1; fi
+  [ "$irr_ok" = 1 ] && break
+  sleep 2
+done
+[ "$irr_ok" = 1 ] \
+  && { echo "  PASS IRR-listed prefix imported"; pass=$((pass+1)); } \
+  || { echo "  FAIL IRR-listed prefix imported"; $COMPOSE exec -T router birdc show route all | grep 185.121 || true; fail=$((fail+1)); }
+[ "$irr_bad" = 0 ] \
+  && { echo "  PASS non-IRR prefix rejected"; pass=$((pass+1)); } \
+  || { echo "  FAIL non-IRR prefix was imported"; fail=$((fail+1)); }
+
+echo "== route optimizer =="
+# The optimizer probes an unreachable target (100% loss) and lowers the peer's
+# local-pref once. local-pref 120 -> 100 (modifier 20) is written into the
+# deployed per-peer BIRD config.
+$COMPOSE exec -d router pathvector optimizer -c /etc/pathvector.yml
+opt=0
+for i in $(seq 1 15); do
+  $COMPOSE exec -T router sh -c 'grep -h "bgp_local_pref = 100" /etc/bird/AS65002_*.conf 2>/dev/null' | grep -q "bgp_local_pref = 100" && { opt=1; break; }
+  sleep 2
+done
+[ "$opt" = 1 ] \
+  && { echo "  PASS optimizer lowered local-pref"; pass=$((pass+1)); } \
+  || { echo "  FAIL optimizer lowered local-pref"; $COMPOSE exec -T router sh -c 'grep -h bgp_local_pref /etc/bird/AS65002_*.conf' || true; fail=$((fail+1)); }
+# Restore the configured local-pref (120) so the diff check below sees a clean
+# config. The optimizer's deprefed map means it won't lower it again.
+$COMPOSE exec -T router pathvector generate -c /etc/pathvector.yml >/dev/null 2>&1 || true
 
 echo "== PeeringDB stub =="
 $COMPOSE exec -T router curl -sf "http://pdb:5000/api/net?asn=65001" >/dev/null \

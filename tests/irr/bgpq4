@@ -1,0 +1,40 @@
+#!/bin/bash
+# Fake bgpq4 for the e2e suite.
+#
+# pathvector shells out to `bgpq4 -h <irr-server> -Ab<4|6> <as-set>` for
+# filter-irr prefix sets and `bgpq4 -h <irr-server> -tj <as-set>` for AS-set
+# members. This stub emits a fixed answer so the e2e suite can exercise
+# pathvector's IRR integration (prefix-set -> import filter -> route
+# filtering) without a real IRR database or the bgpq4<->whois protocol.
+#
+# It only understands the flags pathvector generates; real-world bgpq4
+# behaviour is covered by bgpq4's own test suite.
+set -e
+
+# IRR-listed prefixes for the e2e AS-IRRPEER as-set (AS65003). The peer
+# announces these plus 185.121.173.0/24, which is deliberately absent here so
+# the test can prove filter-irr drops it. Distinct from the main peer's
+# 185.121.170.0/24 so the two sessions can't be confused.
+V4_PREFIXES="185.121.172.0/24"
+
+want_json=0
+want_v6=0
+for a in "$@"; do
+    case "$a" in
+        -tj|-j) want_json=1 ;;
+        *b6*|-6) want_v6=1 ;;
+    esac
+done
+
+if [ "$want_json" = 1 ]; then
+    printf '{"NN": [65003]}\n'
+elif [ "$want_v6" = 1 ]; then
+    # No IPv6 prefixes in the IRR set: empty BIRD list, same shape bgpq4 -b emits.
+    printf '1 = [\n];\n'
+else
+    {
+        echo "1 = ["
+        for p in $V4_PREFIXES; do echo "    $p,"; done
+        echo "];"
+    }
+fi

@@ -5,7 +5,7 @@ services:
       dockerfile: tests/e2e/router/Dockerfile
     networks: [e2e]
     cap_add: [NET_ADMIN]
-    depends_on: [pdb]
+    depends_on: [pdb, irr]
   peer:
     build:
       context: ../..
@@ -13,11 +13,30 @@ services:
     networks: [e2e]
     cap_add: [NET_ADMIN]
     depends_on: [router]
+  peer-irr:
+    build:
+      context: ../..
+      dockerfile: tests/e2e/peer-irr/Dockerfile
+    networks: [e2e]
+    cap_add: [NET_ADMIN]
+    depends_on: [router, irr]
   pdb:
     build:
       context: ../..
       dockerfile: tests/e2e/pdb/Dockerfile
     networks: [e2e]
+  irr:
+    build:
+      context: ../..
+      dockerfile: tests/e2e/irr/Dockerfile
+    networks: [e2e]
 networks:
   e2e:
     driver: bridge
+    # Dual-stack: the e2e suite exercises both an IPv4 and an IPv6 BGP
+    # session between router and peer.
+    enable_ipv6: true
+    ipam:
+      config:
+        - subnet: 10.99.0.0/24
+        - subnet: fd64:6444::/64

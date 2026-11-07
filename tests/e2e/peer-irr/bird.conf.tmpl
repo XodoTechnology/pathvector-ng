@@ -1,0 +1,16 @@
+router id 192.0.2.3;
+protocol device { scan time 10; }
+protocol kernel { ipv4 { export all; }; }
+protocol static irrprefixes {
+  ipv4;
+  # Announced to the router. Only 185.121.172.0/24 is in the e2e IRR as-set
+  # (see tests/irr/bgpq4); 185.121.173.0/24 must be filtered out by filter-irr.
+  # Distinct from the main peer's 185.121.170.0/24 to avoid overlap.
+  route 185.121.172.0/24 via "eth0";
+  route 185.121.173.0/24 via "eth0";
+}
+protocol bgp to_router {
+  local PEER_IRR_IP_PLACEHOLDER as 65003;
+  neighbor ROUTER_IP_PLACEHOLDER as 65001;
+  ipv4 { import all; export all; };
+}

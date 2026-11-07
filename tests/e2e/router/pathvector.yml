@@ -1,14 +1,28 @@
 asn: 65001
 router-id: 192.0.2.1
-prefixes: ["203.0.113.0/24"]
+prefixes: ["203.0.113.0/24", "2001:6464:2::/64"]
 peeringdb-url: http://pdb:5000/api
 bird-directory: /etc/bird/
 cache-directory: /var/run/pathvector/cache/
 bird-socket: /run/bird/bird.ctl
+# IRR whois stub + fake bgpq4 (tests/irr/, tests/e2e/irr/) serve the e2e
+# IRR-filtered peer. Real IRR interop is covered by bgpq4's own tests.
+irr-server: irr
+irr-query-timeout: 5
+bgpq-args: ""
+optimizer:
+  targets: ["192.0.2.254"] # TEST-NET, unreachable -> 100% loss -> depreferred
+  latency-threshold: 1
+  packet-loss-threshold: 0.5
+  modifier: 20
+  probe-count: 1
+  probe-timeout: 1
+  probe-interval: 1
+  cache-size: 1
 peers:
   Peer:
     asn: 65002
-    neighbors: ["PEER_IP"]
+    neighbors: ["PEER_V4_IP", "PEER_V6_IP"]
     description: e2e test peer
     local-pref: 120
     import: true
@@ -18,3 +32,19 @@ peers:
     filter-bogon-asns: false
     filter-prefix-length: true
     next-hop-self: true
+    optimize-inbound: true
+    probe-sources: ["OPT_SRC_IP"]
+  IRRPeer:
+    asn: 65003
+    neighbors: ["PEER_IRR_IP"]
+    description: e2e IRR-filtered peer
+    local-pref: 100
+    import: true
+    export: false
+    filter-irr: true
+    as-set: AS-IRRPEER
+    verify-irr-policy: true
+    enforce-first-as: true
+    filter-bogon-routes: true
+    filter-bogon-asns: false
+    filter-prefix-length: true
