@@ -32,6 +32,11 @@ var metricsCmd = &cobra.Command{
 			log.Infof("backend is cairn: cairnd serves metrics natively on %s/metrics", listen)
 			return
 		}
+		if isFRRBackend(c) {
+			// FRR does not expose a pathvector-compatible metrics feed yet;
+			// fail loudly rather than silently falling back to birdc.
+			log.Fatal("metrics are not yet supported on the frr backend; use FRR's own monitoring or the bird backend")
+		}
 		birdSocket, _ := birdPaths(c)
 		if err := metrics.Serve(listen, birdSocket); err != nil {
 			log.Fatal(err)

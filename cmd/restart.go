@@ -9,6 +9,7 @@ import (
 
 	"github.com/XodoTechnology/pathvector-ng/pkg/bird"
 	"github.com/XodoTechnology/pathvector-ng/pkg/config"
+	"github.com/XodoTechnology/pathvector-ng/pkg/frr"
 )
 
 var restartAll bool
@@ -44,6 +45,10 @@ BIRD protocols, e.g. both IPv4 and IPv6 sessions) or a BIRD protocol name as sho
 
 		if isCairnBackend(c) {
 			runCairnRestart(c, args, restartAll)
+			return
+		}
+		if isFRRBackend(c) {
+			runFRRRestart(c, args, restartAll)
 			return
 		}
 
@@ -162,5 +167,56 @@ func runCairnRestart(c *config.Config, args []string, all bool) {
 	}
 	if failed > 0 {
 		log.Fatalf("Failed to reset %d of %d sessions", failed, len(targets))
+	}
+}
+
+// runFRRRestart bounces FRR BGP sessions via `vtysh -c "clear bgp <addr>"`.
+// Arguments may be peer names (all of the peer's neighbor addresses are
+// cleared) or raw neighbor addresses. --all clears every BGP session.
+func runFRRRestart(c *config.Config, args []string, all bool) {
+	// Build peer name → neighbor addresses map (same shape as the Cairn path).
+	peerAddrs := map[string][]string{}
+	var allAddrs []string
+	for name, p := range c.Peers {
+		for _, addr := range peerNeighborAddrs(p) {
+			peerAddrs[name] = append(peerAddrs[name], addr)
+			allAddrs = append(allAddrs, addr)
+		}
+	}
+
+	var targets []string
+	switch {
+	case all:
+		targets = []string{"*"}
+	case len(args) == 0:
+		log.Fatal("Usage: pathvector restart <name|address> [name|address...] (or --all)")
+	default:
+		seen := map[string]bool{}
+		for _, arg := range args {
+			addrs, ok := peerAddrs[arg]
+			if !ok {
+				addrs = []string{arg} // treat as a raw neighbor address
+			}
+			for _, a := range addrs {
+				if !seen[a] {
+					seen[a] = true
+					targets = append(targets, a)
+				}
+			}
+		}
+	}
+
+	failed := 0
+	for _, addr := range targets {
+		log.Debugf("Clearing BGP session %s", addr)
+		if _, err := frr.Show(c, "-c", "clear bgp "+addr); err != nil {
+			log.Errorf("%s: %v", addr, err)
+			failed++
+			continue
+		}
+		fmt.Printf("Cleared BGP session %s\n", addr)
+	}
+	if failed > 0 {
+		log.Fatalf("Failed to clear %d of %d sessions", failed, len(targets))
 	}
 }

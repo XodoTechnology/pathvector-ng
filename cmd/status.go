@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/fatih/color"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/XodoTechnology/pathvector-ng/pkg/bird"
 	"github.com/XodoTechnology/pathvector-ng/pkg/config"
+	"github.com/XodoTechnology/pathvector-ng/pkg/frr"
 	"github.com/XodoTechnology/pathvector-ng/pkg/templating"
 	"github.com/XodoTechnology/pathvector-ng/pkg/util"
 )
@@ -68,6 +70,10 @@ var statusCmd = &cobra.Command{
 
 		if isCairnBackend(c) {
 			runCairnStatus(c)
+			return
+		}
+		if isFRRBackend(c) {
+			runFRRStatus(c)
 			return
 		}
 
@@ -235,6 +241,103 @@ func runCairnStatus(c *config.Config) {
 		log.Fatal(err)
 	}
 	fmt.Print(out)
+}
+
+// frrPeerJSON is the per-neighbor subset of `show bgp summary json` output.
+type frrPeerJSON struct {
+	RemoteAs int    `json:"remoteAs"`
+	State    string `json:"state"`
+	PfxRcd   int    `json:"pfxRcd"`
+	PfxSnt   int    `json:"pfxSnt"`
+	Uptime   string `json:"peerUptime"`
+}
+
+// frrSession mirrors the JSON session shape emitted by the bird backend.
+type frrSession struct {
+	Name     string `json:"name"`
+	Protocol string `json:"protocol"`
+	Neighbor string `json:"neighbor,omitempty"`
+	ASN      int    `json:"asn,omitempty"`
+	State    string `json:"state"`
+	Imported int    `json:"routes_imported,omitempty"`
+	Exported int    `json:"routes_exported,omitempty"`
+	Since    string `json:"since"`
+	Info     string `json:"info"`
+}
+
+// runFRRStatus reads BGP neighbor state from FRR via `vtysh -c "show bgp
+// summary json"` and renders the same table/JSON shape as the other backends.
+// Neighbor addresses are mapped back to pathvector peer names using the
+// configured neighbor addresses.
+func runFRRStatus(c *config.Config) {
+	nameByAddr := map[string]string{}
+	for name, p := range c.Peers {
+		for _, addr := range peerNeighborAddrs(p) {
+			nameByAddr[addr] = name
+		}
+	}
+
+	out, err := frr.Show(c, "-c", "show bgp summary json")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// `show bgp summary json` returns one object per AFI/SAFI that has
+	// neighbors, e.g. {"ipv4-unicast": {"peers": {...}}, "ipv6-unicast": {...}}.
+	var byAF map[string]struct {
+		Peers map[string]frrPeerJSON `json:"peers"`
+	}
+	if err := json.Unmarshal([]byte(out), &byAF); err != nil {
+		log.Fatalf("parsing vtysh JSON: %v", err)
+	}
+
+	sessions := []frrSession{}
+	for afi, sec := range byAF {
+		for addr, pj := range sec.Peers {
+			name := nameByAddr[addr]
+			if name == "" {
+				name = addr
+			}
+			sessions = append(sessions, frrSession{
+				Name:     name,
+				Protocol: "bgp",
+				Neighbor: addr,
+				ASN:      pj.RemoteAs,
+				State:    pj.State,
+				Imported: pj.PfxRcd,
+				Exported: pj.PfxSnt,
+				Since:    pj.Uptime,
+				Info:     afi,
+			})
+		}
+	}
+	sort.Slice(sessions, func(i, j int) bool { return sessions[i].Name < sessions[j].Name })
+
+	if jsonOut {
+		j, err := json.MarshalIndent(sessions, "", "  ")
+		if err != nil {
+			log.Fatal(err)
+		}
+		fmt.Println(string(j))
+		return
+	}
+
+	util.PrintTable([]string{"Peer", "AS", "Neighbor", "State", "In", "Out", "Since", "Info"}, func() [][]string {
+		var rows [][]string
+		for _, s := range sessions {
+			rows = append(rows, []string{
+				s.Name,
+				strconv.Itoa(s.ASN),
+				s.Neighbor,
+				colorStatus(s.State),
+				strconv.Itoa(s.Imported),
+				strconv.Itoa(s.Exported),
+				s.Since,
+				s.Info,
+			})
+		}
+		return rows
+	}())
 }
 
 // containsAny checks if two string slices contain any of the same elements

@@ -3,6 +3,7 @@ package cmd
 import (
 	"os"
 	"os/exec"
+	"path/filepath"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -38,13 +39,27 @@ the rendered output matches the live config, 1 when they differ.`,
 		liveDir := c.BIRDDirectory
 		if isCairnBackend(c) {
 			liveDir = c.CairnDirectory
+		} else if isFRRBackend(c) {
+			liveDir, _ = frrPaths(c)
 		}
 
-		// diff -urN cache/ live/ — exit status 0 same, 1 differ, >1 error
-		// -I ignores the "# Update time:" header; side files that only exist in
-		// one directory are excluded.
-		//nolint:gosec
-		diff := exec.Command("diff", "-urN", "-I", "^# Update time:", "-x", "protocols.json", "-x", "pathvector.yml", "-x", "envvars", "-x", "*.json", "-x", "*.yml", "-x", ".rollback", c.CacheDirectory, liveDir)
+		// diff exits 0 when identical, 1 when different, >1 on error.
+		var diff *exec.Cmd
+		if isFRRBackend(c) {
+			// FRR's config directory holds many files pathvector does not
+			// manage (zebra.conf, bgpd.conf, vtysh.conf, ...), so compare only
+			// the generated frr.conf rather than diffing whole directories.
+			// -N treats a missing live file as empty so a not-yet-deployed
+			// config still diffs cleanly.
+			diff = exec.Command("diff", "-uN", "-I", "^# Update time:",
+				filepath.Join(c.CacheDirectory, "frr.conf"),
+				filepath.Join(liveDir, "frr.conf"))
+		} else {
+			// diff -urN cache/ live/ — -I ignores the "# Update time:" header;
+			// side files that only exist in one directory are excluded.
+			//nolint:gosec
+			diff = exec.Command("diff", "-urN", "-I", "^# Update time:", "-x", "protocols.json", "-x", "pathvector.yml", "-x", "envvars", "-x", "*.json", "-x", "*.yml", "-x", ".rollback", c.CacheDirectory, liveDir)
+		}
 		if !diffQuiet {
 			diff.Stdout = os.Stdout
 		}

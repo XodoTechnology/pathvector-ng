@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"path"
 	"sort"
+	"strings"
 
 	"github.com/creasty/defaults"
 	log "github.com/sirupsen/logrus"
@@ -52,9 +53,47 @@ func cairnPaths(c *config.Config) (socket string, directory string) {
 	return socket, directory
 }
 
+// peerNeighborAddrs returns the configured neighbor addresses of a peer with
+// any IPv6 zone suffix stripped, for mapping BGP neighbor addresses back to
+// pathvector peer names.
+func peerNeighborAddrs(p *config.Peer) []string {
+	if p.NeighborIPs == nil {
+		return nil
+	}
+	out := make([]string, 0, len(*p.NeighborIPs))
+	for _, nb := range *p.NeighborIPs {
+		out = append(out, strings.SplitN(nb, "%", 2)[0])
+	}
+	return out
+}
+
 // isCairnBackend reports whether the loaded config selects the Cairn backend.
 func isCairnBackend(c *config.Config) bool {
 	return c != nil && c.Backend == "cairn"
+}
+
+// isFRRBackend reports whether the loaded config selects the FRR backend.
+func isFRRBackend(c *config.Config) bool {
+	return c != nil && c.Backend == "frr"
+}
+
+// frrPaths returns the FRR config directory and vtysh binary path from c,
+// falling back to config defaults when unset.
+func frrPaths(c *config.Config) (directory, vtysh string) {
+	var def config.Config
+	if err := defaults.Set(&def); err != nil {
+		log.Warnf("Setting config defaults: %v", err)
+	}
+	directory, vtysh = def.FRRDirectory, def.VtyshBinary
+	if c != nil {
+		if c.FRRDirectory != "" {
+			directory = c.FRRDirectory
+		}
+		if c.VtyshBinary != "" {
+			vtysh = c.VtyshBinary
+		}
+	}
+	return directory, vtysh
 }
 
 // ctrlBinary returns the cairnctrl binary path from config (or the default).

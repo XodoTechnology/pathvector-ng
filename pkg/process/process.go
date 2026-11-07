@@ -25,6 +25,7 @@ import (
 	"github.com/XodoTechnology/pathvector-ng/pkg/cairn"
 	"github.com/XodoTechnology/pathvector-ng/pkg/config"
 	"github.com/XodoTechnology/pathvector-ng/pkg/embed"
+	"github.com/XodoTechnology/pathvector-ng/pkg/frr"
 	"github.com/XodoTechnology/pathvector-ng/pkg/irr"
 	"github.com/XodoTechnology/pathvector-ng/pkg/peeringdb"
 	"github.com/XodoTechnology/pathvector-ng/pkg/plugin"
@@ -1076,6 +1077,9 @@ func Run(configFilename, lockFile, version string, noConfigure, dryRun, withdraw
 	if c.Backend == "cairn" {
 		return runCairn(configFilename, c, version, noConfigure, dryRun, withdraw, offline)
 	}
+	if c.Backend == "frr" {
+		return runFRR(configFilename, c, version, noConfigure, dryRun, withdraw, offline)
+	}
 
 	// Load templates from embedded filesystem
 	log.Debug("Loading templates from embedded filesystem")
@@ -1343,5 +1347,138 @@ func runCairn(configFilename string, c *config.Config, version string, noConfigu
 	}
 
 	log.Infof("Processed %d sessions over %d peers (backend: cairn)", countSessions(c.Peers), len(c.Peers))
+	return nil
+}
+
+// peerFRR processes a single peer for the FRR backend: enriches peer data
+// (shared with BIRD) then renders frr.conf fragments into shared buffers.
+func peerFRR(peerName string, peerData *config.Peer, c *config.Config, offline bool, wg *sync.WaitGroup,
+	mu *sync.Mutex, blocks *map[string]frr.PeerBlocks) {
+	defer wg.Done()
+
+	enrichPeer(peerName, peerData, c, offline)
+
+	pb, warns := frr.PeerConfig(peerName, peerData, c)
+	for _, u := range warns {
+		log.Warnf("[%s] frr backend does not support: %s", peerName, u)
+	}
+
+	mu.Lock()
+	defer mu.Unlock()
+	(*blocks)[peerName] = pb
+}
+
+// runFRR is the FRR-backend equivalent of Run: renders a single frr.conf
+// into the cache directory, validates with `vtysh -C -f`, then deploys to
+// the FRR config directory.
+func runFRR(configFilename string, c *config.Config, version string, noConfigure, dryRun, withdraw, offline bool) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("%v", r)
+		}
+	}()
+
+	log.Infof("Starting Pathvector NG %s (backend: frr)", version)
+
+	// BIRD-only subsystems have no FRR equivalent.
+	if len(c.VRRPInstances)+len(c.BFDInstances)+len(c.MRTInstances) > 0 {
+		log.Warn("backend frr: vrrp/bfd/mrt instances are not supported and were skipped")
+	}
+	if c.GlobalConfig != "" {
+		log.Warn("backend frr: global-config (raw BIRD config) is not supported and was skipped")
+	}
+	if len(c.DisableProtocols) > 0 {
+		log.Warn("backend frr: disable-protocols is BIRD-specific and was skipped")
+	}
+	if c.KeepalivedConfig != "" {
+		log.Warn("backend frr: keepalived-config is BIRD/VRRP-specific and was skipped")
+	}
+	if len(c.Kernel.Accept4)+len(c.Kernel.Accept6)+len(c.Kernel.Reject4)+len(c.Kernel.Reject6) > 0 {
+		log.Warn("backend frr: kernel accept/reject protocol lists are BIRD-specific and were skipped")
+	}
+	if len(c.Kernel.Tables) > 0 {
+		log.Warn("backend frr: additional kernel tables are not supported and were skipped")
+	}
+	if c.Kernel.Learn {
+		log.Warn("backend frr: kernel learn is not supported and was skipped")
+	}
+	if c.Kernel.Table != 0 {
+		log.Warn("backend frr: non-default kernel table is not supported and was skipped")
+	}
+	if c.Kernel.RejectConnected {
+		log.Warn("backend frr: kernel reject-connected is not supported and was skipped")
+	}
+	if c.Source4 != "" || c.Source6 != "" {
+		log.Warn("backend frr: global source4/source6 are not supported and were skipped")
+	}
+	if len(c.AuthorizedProviders) > 0 {
+		log.Warn("backend frr: authorized-providers (ASPA) is not supported and was skipped")
+	}
+	if c.AcceptDefault {
+		log.Warn("backend frr: accept-default is approximated (FRR has no direct equivalent)")
+	}
+
+	if withdraw {
+		log.Warn("DANGER: withdraw flag is set, withdrawing all routes")
+		c.NoAnnounce = true
+	}
+
+	if err := os.MkdirAll(c.CacheDirectory, os.FileMode(0755)); err != nil {
+		panic(fmt.Errorf("%v", err))
+	}
+
+	log.Debug("Processing peers (frr)")
+	wg := new(sync.WaitGroup)
+	peerErrs := make(chan error, len(c.Peers))
+	var mu sync.Mutex
+	blocks := map[string]frr.PeerBlocks{}
+	for peerName, peerData := range c.Peers {
+		wg.Add(1)
+		go func(peerName string, peerData *config.Peer) {
+			defer func() {
+				if r := recover(); r != nil {
+					peerErrs <- fmt.Errorf("[%s] %v", peerName, r)
+				}
+			}()
+			peerFRR(peerName, peerData, c, offline, wg, &mu, &blocks)
+		}(peerName, peerData)
+	}
+	wg.Wait()
+	close(peerErrs)
+	for perr := range peerErrs {
+		if err == nil {
+			err = perr
+		} else {
+			log.Errorf("%v", perr)
+		}
+	}
+	if err != nil {
+		return err
+	}
+
+	// Assemble frr.conf.
+	conf := frr.Config(c, blocks)
+	frrPath := path.Join(c.CacheDirectory, "frr.conf")
+	if err := os.WriteFile(frrPath, []byte(conf), 0644); err != nil {
+		fatalf("Write frr.conf: %v", err)
+	}
+
+	// Copy the source config for reference.
+	if err := util.CopyFile(configFilename, path.Join(c.CacheDirectory, "pathvector.yml")); err != nil {
+		fatalf("Copying Pathvector config file to cache directory: %v", err)
+	}
+
+	// Validate with vtysh -C -f (dry-run parse; no running daemons needed).
+	if err := frr.Check(c.VtyshBinary, frrPath); err != nil {
+		return err
+	}
+
+	if !dryRun {
+		if err := frr.Deploy(c, c.CacheDirectory, noConfigure); err != nil {
+			return err
+		}
+	}
+
+	log.Infof("Processed %d sessions over %d peers (backend: frr)", countSessions(c.Peers), len(c.Peers))
 	return nil
 }
