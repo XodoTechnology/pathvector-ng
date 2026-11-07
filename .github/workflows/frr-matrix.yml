@@ -1,0 +1,65 @@
+# FRR test matrix: validate the generated configuration against every FRR
+# version listed in tests/frr-matrix/versions.txt. Each version is built from
+# source in Docker by tests/frr-matrix/Dockerfile (see the README there).
+name: FRR matrix
+
+on:
+  push:
+    # Branches only: release tags run this workflow through release.yml
+    # (workflow_call below), so a tag push does not run it twice.
+    branches: ['**']
+  pull_request:
+  workflow_dispatch:
+  # Lets release.yml run the matrix and gate the release on it
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  versions:
+    name: read versions
+    runs-on: ubuntu-latest
+    outputs:
+      frr: ${{ steps.versions.outputs.frr }}
+    steps:
+      - uses: actions/checkout@v4
+      # versions.txt is the single source of truth for the matrix (it is also
+      # what `make frr-matrix` uses), so turn it into a JSON array here
+      # instead of duplicating the list in this file. Each line is "TAG" or
+      # "TAG LIBYANG_REF"; both fields are carried into the matrix so the
+      # matching libyang can be built from source when needed.
+      - id: versions
+        run: |
+          frr=$(sed -e 's/#.*//' -e '/^[[:space:]]*$/d' tests/frr-matrix/versions.txt \
+            | jq -R -s -c '
+                split("\n")
+                | map(split(" ") | map(select(length > 0)))
+                | map(select(length > 0))
+                | map({version: .[0], libyang: (.[1] // "")})')
+          echo "FRR versions: $frr"
+          echo "frr=$frr" >> "$GITHUB_OUTPUT"
+
+  frr-matrix:
+    name: FRR ${{ matrix.frr.version }}
+    needs: versions
+    runs-on: ubuntu-latest
+    strategy:
+      # Report every incompatible version, not just the first one. FRR source
+      # builds are heavy, so keep the per-version timeout generous.
+      fail-fast: false
+      matrix:
+        frr: ${{ fromJSON(needs.versions.outputs.frr) }}
+    steps:
+      - uses: actions/checkout@v4
+      # Write a single-line versions file for this matrix entry and reuse the
+      # Makefile target, which builds the image (passing FRR_VERSION and the
+      # optional LIBYANG_REF) and runs tests/frr-matrix/run-tests.sh in it.
+      # NET_ADMIN+SYS_ADMIN (added by the Makefile target) let zebra program
+      # kernel routes over netlink and satisfy FRR's capability requests.
+      - name: Build and test
+        run: |
+          printf '%s %s\n' "${{ matrix.frr.version }}" "${{ matrix.frr.libyang }}" \
+            | sed -e 's/ *$//' > /tmp/frr-version.txt
+          cat /tmp/frr-version.txt
+          make frr-matrix FRR_VERSIONS_FILE=/tmp/frr-version.txt

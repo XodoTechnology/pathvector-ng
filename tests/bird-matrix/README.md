@@ -80,14 +80,18 @@ default, because `gitlab.nic.cz` is not reachable from every CI runner. Set
 
 `versions.txt` lists the default versions (one git tag per line):
 
-| Version  | Why                                         |
-|----------|---------------------------------------------|
-| v2.0.7   | oldest supported version (`supportedMin`)   |
-| v2.0.12  | last 2.0.x release                          |
-| v2.14    | `bird2` package of Ubuntu 24.04 LTS         |
-| v2.15.1  | 2.15 release line                           |
-| v2.17.7  | 2.17 release line                           |
-| v2.19.3  | latest 2.x release when the matrix was added |
+| Version  | Why                                            |
+|----------|------------------------------------------------|
+| v2.0.7   | oldest supported version (`supportedMin`)      |
+| v2.0.12  | last 2.0.x release                             |
+| v2.13.1  | 2.13 release line                              |
+| v2.14    | `bird2` package of Ubuntu 24.04 LTS            |
+| v2.15.1  | 2.15 release line                              |
+| v2.16.2  | 2.16 release line                              |
+| v2.17.7  | 2.17 release line                              |
+| v2.18.4  | 2.18 release line                              |
+| v2.19.3  | 2.19 release line                              |
+| v2.20.0  | latest 2.x release                             |
 
 ## Known failures
 

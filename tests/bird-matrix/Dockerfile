@@ -12,7 +12,7 @@
 # Ubuntu LTS is used for building and running BIRD (it matches the GitHub
 # Actions runners); the Go stage only produces a static binary.
 ARG UBUNTU_RELEASE=24.04
-ARG GO_VERSION=1.22
+ARG GO_VERSION=1.24
 
 # ---------------------------------------------------------------------------
 # Stage 1: build BIRD from a git tag

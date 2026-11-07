@@ -1,0 +1,20 @@
+# Known incompatibilities between Pathvector's generated config and an FRR
+# version, one per line: "<frr-version> <config-name>  # reason".
+# <frr-version> is the git tag (e.g. frr-10.3.4); the leading "frr-" is
+# optional. <config-name> is the test config's file name without .yml.
+#
+# Listed combinations are expected to fail and are reported as XFAIL. If one
+# starts passing, run-tests.sh reports XPASS and fails, so the entry gets
+# removed. Prefer fixing the renderer (pkg/frr) over adding entries here.
+
+# FRR <= 10.0 does not accept Pathvector's RPKI cache syntax. Those releases
+# use `rpki cache <host> <port> ...` (no tcp/ssh keyword); the `cache tcp` /
+# `cache ssh` keywords were introduced in FRR 10.1. Pathvector emits the
+# >= 10.1 form, so the RPKI-enabled configs (generate-simple,
+# generate-complex) fail `vtysh -C` on these versions. generate-norpki.yml
+# sets `rpki-enable: false` and verifies everything else works. Users on
+# FRR <= 10.0 should set `rpki-enable: false` (RPKI is optional) or upgrade.
+frr-9.1.3  generate-simple
+frr-9.1.3  generate-complex
+frr-10.0.5 generate-simple
+frr-10.0.5 generate-complex

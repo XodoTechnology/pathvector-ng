@@ -17,8 +17,12 @@ jobs:
   bird-matrix:
     uses: ./.github/workflows/bird-matrix.yml
 
+  # Same for the FRR backend (.github/workflows/frr-matrix.yml)
+  frr-matrix:
+    uses: ./.github/workflows/frr-matrix.yml
+
   goreleaser:
-    needs: bird-matrix
+    needs: [bird-matrix, frr-matrix]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout

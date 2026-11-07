@@ -1,0 +1,15 @@
+# Build context exclusions for tests/frr-matrix/Dockerfile (BuildKit picks up
+# <Dockerfile>.dockerignore automatically). Keeps the context small and stops
+# local artifacts from leaking into the image.
+.git
+.idea
+dist
+build
+test-cache
+cmd/test-cache
+pathvector
+coverage.txt
+nohup.out
+# FRR binaries built locally by build-frr-versions.sh
+tests/frr-matrix/frr-*
+vendorbuild

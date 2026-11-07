@@ -1,0 +1,24 @@
+asn: 34553
+router-id: 192.0.2.1
+source4: 192.0.2.1
+source6: 2001:db8::1
+# RPKI disabled: FRR <= 10.0 does not understand the `rpki cache tcp`
+# syntax Pathvector emits for FRR >= 10.1 (it uses `rpki cache HOST PORT`
+# with no tcp/ssh keyword). This config verifies that everything *except*
+# the RPKI block works on those versions.
+rpki-enable: false
+prefixes:
+  - 192.0.2.0/24
+  - 2001:db8::/48
+web-ui-file: test-cache/ui.html
+cache-directory: test-cache
+peeringdb-url: http://127.0.0.1:5000/api
+
+peers:
+  Example:
+    import: false
+    export: false
+    asn: 65510
+    neighbors:
+      - 203.0.113.12
+      - 2001:db8::12

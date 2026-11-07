@@ -7,9 +7,15 @@
 #
 # v2.0.7 is the oldest version Pathvector supports (supportedMin in
 # pkg/bird/bird.go); keep it here as long as that minimum is unchanged.
+# The rest track the newest patch of each minor release line so every
+# generation of BIRD 2.x is exercised.
 v2.0.7
 v2.0.12
+v2.13.1
 v2.14
 v2.15.1
+v2.16.2
 v2.17.7
+v2.18.4
 v2.19.3
+v2.20.0
