@@ -94,3 +94,8 @@ e2e:
 # Cairn e2e needs the private-beta cairn.deb in tests/cairn-e2e/ (see its README).
 cairn-e2e:
 	bash tests/cairn-e2e/run-tests.sh
+
+# Print the README daemon-compatibility table regenerated from the matrix
+# version files (see tests/compat-report.sh).
+compat:
+	@bash tests/compat-report.sh

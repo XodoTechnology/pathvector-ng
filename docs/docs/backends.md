@@ -16,6 +16,11 @@ IRR, communities, policies, the optimizer — is shared by every backend.
 | `cairn` | `cairnd.toml` + `policy.conf` + `staticd.toml` | `cairnctrl` socket | Core feature set (see below) |
 | `frr` | `frr.conf` | `vtysh` | Core feature set (see below) |
 
+Each backend is exercised against released daemon versions by an automated
+matrix (`tests/bird-matrix`, `tests/frr-matrix`, `tests/cairn-e2e`,
+`tests/e2e`) — BIRD `v2.0.7`–`v3.4.0`, FRR `frr-9.1.3`–`frr-10.7.1`, Cairn
+`0.1.1`. Regenerate the README's compatibility table with `make compat`.
+
 Set it at the top level of `pathvector.yml`:
 
 ```yaml
