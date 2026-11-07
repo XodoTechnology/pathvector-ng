@@ -1,0 +1,25 @@
+asn: 65001
+router-id: 192.0.2.1
+backend: cairn
+prefixes: ["203.0.113.0/24", "2001:6464:2::/64"]
+# No RPKI in the lab: the default RTR cache (rtr.irrd3.net) is external and
+# would make the test non-hermetic.
+rpki-enable: false
+# Linux main table for cairnd's [fib] kernel programming.
+kernel:
+  table: 254
+cairn-directory: /etc/cairn/
+cache-directory: /var/run/pathvector/cache/
+peers:
+  Peer:
+    asn: 65002
+    neighbors: ["PEER_V4_IP", "PEER_V6_IP"]
+    description: cairn e2e test peer
+    local-pref: 120
+    import: true
+    export: true
+    enforce-first-as: true
+    filter-bogon-routes: true
+    filter-bogon-asns: false
+    filter-prefix-length: true
+    next-hop-self: true

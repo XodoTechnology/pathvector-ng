@@ -81,6 +81,12 @@ by dropping the invalid option with a warning.
 
 Cairn is early-release software; treat `backend: cairn` as experimental.
 
+`tests/cairn-e2e/` exercises the backend end-to-end against a real `cairnd`:
+IPv4+IPv6 BGP sessions and route propagation with a BIRD peer, plus
+`check`/`status`/`diff`/`restart` and cairnd's native metrics endpoint
+(14 assertions). Because Cairn is private-beta with no public package repo,
+the suite takes the `cairn.deb` as a local build input — see its README.
+
 ## FRR backend
 
 With `backend: frr`, `pathvector generate` renders a single integrated

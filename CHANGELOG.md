@@ -13,7 +13,10 @@ from `main` once the e2e suite passes; PR titles feed the generated release note
   native Prometheus `[metrics]` endpoint. Peer/policy options are shared with the
   BIRD backend; unsupported features warn instead of silently dropping, and
   Cairn-enforced session-role conflicts (rr-client/rs-client/allowas-in,
-  ttl-security+multihop) are resolved with warnings. Experimental — Cairn is
+  ttl-security+multihop) are resolved with warnings. `tests/cairn-e2e/` runs a
+  live `cairnd` + BIRD-peer lab (IPv4/IPv6 sessions, route propagation,
+  `check`/`status`/`diff`/`restart`, native metrics — 14 assertions); it takes
+  the private-beta `cairn.deb` as a local input. Experimental — Cairn is
   early-release.
 
 - **FRR backend (`backend: frr`)** — Pathvector NG now renders and manages

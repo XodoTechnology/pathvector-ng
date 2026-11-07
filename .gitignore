@@ -32,3 +32,6 @@ coverage.txt
 tests/bird-matrix/v[0-9]*
 test-bird/
 tests/e2e/pathvector
+
+# Cairn e2e: private-beta .deb is a local build input, never committed
+tests/cairn-e2e/cairn.deb

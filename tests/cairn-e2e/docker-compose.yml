@@ -1,0 +1,24 @@
+services:
+  router:
+    build:
+      context: ../..
+      dockerfile: tests/cairn-e2e/router/Dockerfile
+    networks: [e2e]
+    cap_add: [NET_ADMIN]
+    depends_on: [peer]
+  peer:
+    # Reuse the BIRD peer from the main e2e suite (dual-stack eBGP, announces
+    # 185.121.170.0/24, 198.51.100.0/24 and 2001:6464:1::/48).
+    build:
+      context: ../..
+      dockerfile: tests/e2e/peer/Dockerfile
+    networks: [e2e]
+    cap_add: [NET_ADMIN]
+networks:
+  e2e:
+    driver: bridge
+    enable_ipv6: true
+    ipam:
+      config:
+        - subnet: 10.98.0.0/24
+        - subnet: fd65:6455::/64
