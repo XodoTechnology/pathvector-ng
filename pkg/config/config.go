@@ -150,8 +150,8 @@ type Peer struct {
 	DisableAfterError      *bool     `yaml:"disable-after-error" description:"Disable peer after error" default:"false"`
 	PreferOlderRoutes      *bool     `yaml:"prefer-older-routes" description:"Prefer older routes instead of comparing router IDs (RFC 5004)" default:"false"`
 	IRRAcceptChildPrefixes *bool     `yaml:"irr-accept-child-prefixes" description:"Accept prefixes up to /24 and /48 from covering parent IRR objects" default:"false"`
-	IRRPrefixLength4         *int      `yaml:"irr-prefix-length4" description:"Override the IPv4 max prefix length bound used with irr-accept-child-prefixes (bgpq4 -R; default 32)" default:"-"`
-	IRRPrefixLength6         *int      `yaml:"irr-prefix-length6" description:"Override the IPv6 max prefix length bound used with irr-accept-child-prefixes (bgpq4 -R; default 128)" default:"-"`
+	IRRPrefixLength4       *int      `yaml:"irr-prefix-length4" description:"Override the IPv4 max prefix length bound used with irr-accept-child-prefixes (bgpq4 -R; default 32)" default:"-"`
+	IRRPrefixLength6       *int      `yaml:"irr-prefix-length6" description:"Override the IPv6 max prefix length bound used with irr-accept-child-prefixes (bgpq4 -R; default 128)" default:"-"`
 
 	ImportCommunities    *[]string `yaml:"add-on-import" description:"List of communities to add to all imported routes" default:"-"`
 	ExportCommunities    *[]string `yaml:"add-on-export" description:"List of communities to add to all exported routes" default:"-"`
@@ -356,11 +356,28 @@ type Config struct {
 	BIRDBinary            string `yaml:"bird-binary" description:"Path to BIRD binary" default:"/usr/sbin/bird"`
 	MetricsListen         string `yaml:"metrics-listen" description:"Listen address for the Prometheus metrics endpoint used by pathvector metrics (e.g. 127.0.0.1:9517; empty uses the --listen default)" default:"-"`
 	BIRDSocket            string `yaml:"bird-socket" description:"UNIX control socket for BIRD" default:"/run/bird/bird.ctl"`
-	CacheDirectory        string `yaml:"cache-directory" description:"Directory to store runtime configuration cache" default:"/var/run/pathvector/cache/"`
-	KeepalivedConfig      string `yaml:"keepalived-config" description:"Configuration file for keepalived" default:"/etc/keepalived.conf"`
-	WebUIFile             string `yaml:"web-ui-file" description:"File to write web UI to (disabled if empty)" default:""`
-	LogFile               string `yaml:"log-file" description:"Log file location" default:"syslog"`
-	GlobalConfig          string `yaml:"global-config" description:"Global BIRD configuration" default:""`
+
+	// Backend selects the routing daemon pathvector renders and manages
+	// configurations for: "bird" (default), "cairn" or "frr". All peer and
+	// policy options are backend-agnostic; each backend renders its own
+	// native configuration and drives its own control channel.
+	Backend string `yaml:"backend" description:"Routing daemon backend: bird, cairn or frr" default:"bird"`
+
+	// Cairn backend settings (used when backend: cairn)
+	CairnDirectory  string `yaml:"cairn-directory" description:"Directory for Cairn configuration files (cairnd.toml, policy.conf, staticd.toml)" default:"/etc/cairn/"`
+	CairndBinary    string `yaml:"cairnd-binary" description:"Path to the cairnd binary" default:"/usr/sbin/cairnd"`
+	CairnCtrlBinary string `yaml:"cairnctrl-binary" description:"Path to the cairnctrl binary" default:"/usr/bin/cairnctrl"`
+	CairnSocket     string `yaml:"cairn-socket" description:"UNIX control socket for cairnd" default:"/run/cairn/cairnd.sock"`
+	StaticdBinary   string `yaml:"staticd-binary" description:"Path to the staticd binary" default:"/usr/sbin/staticd"`
+
+	// FRR backend settings (used when backend: frr)
+	FRRDirectory     string `yaml:"frr-directory" description:"Directory for FRR configuration files" default:"/etc/frr/"`
+	VtyshBinary      string `yaml:"vtysh-binary" description:"Path to the vtysh binary" default:"/usr/bin/vtysh"`
+	CacheDirectory   string `yaml:"cache-directory" description:"Directory to store runtime configuration cache" default:"/var/run/pathvector/cache/"`
+	KeepalivedConfig string `yaml:"keepalived-config" description:"Configuration file for keepalived" default:"/etc/keepalived.conf"`
+	WebUIFile        string `yaml:"web-ui-file" description:"File to write web UI to (disabled if empty)" default:""`
+	LogFile          string `yaml:"log-file" description:"Log file location" default:"syslog"`
+	GlobalConfig     string `yaml:"global-config" description:"Global BIRD configuration" default:""`
 
 	DeviceScanTime   int      `yaml:"device-scan-time" description:"Time in seconds between interface scans of the BIRD device protocol (BIRD default if 0)" default:"0"`
 	DirectCheckLink  bool     `yaml:"direct-check-link" description:"Should the BIRD direct protocol only import routes of interfaces with link up? (check link)" default:"false"`

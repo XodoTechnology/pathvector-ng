@@ -69,6 +69,70 @@ UNIX control socket for BIRD
 |------|---------|------------|
 | string   | /run/bird/bird.ctl      |          |
 
+### `backend`
+
+Routing daemon backend: bird, cairn or frr
+
+| Type | Default | Validation |
+|------|---------|------------|
+| string   | bird      |          |
+
+### `cairn-directory`
+
+Directory for Cairn configuration files (cairnd.toml, policy.conf, staticd.toml)
+
+| Type | Default | Validation |
+|------|---------|------------|
+| string   | /etc/cairn/      |          |
+
+### `cairnd-binary`
+
+Path to the cairnd binary
+
+| Type | Default | Validation |
+|------|---------|------------|
+| string   | /usr/sbin/cairnd      |          |
+
+### `cairnctrl-binary`
+
+Path to the cairnctrl binary
+
+| Type | Default | Validation |
+|------|---------|------------|
+| string   | /usr/bin/cairnctrl      |          |
+
+### `cairn-socket`
+
+UNIX control socket for cairnd
+
+| Type | Default | Validation |
+|------|---------|------------|
+| string   | /run/cairn/cairnd.sock      |          |
+
+### `staticd-binary`
+
+Path to the staticd binary
+
+| Type | Default | Validation |
+|------|---------|------------|
+| string   | /usr/sbin/staticd      |          |
+
+### `frr-directory`
+
+Directory for FRR configuration files
+
+| Type | Default | Validation |
+|------|---------|------------|
+| string   | /etc/frr/      |          |
+
+### `vtysh-binary`
+
+Path to the vtysh binary
+
+| Type | Default | Validation |
+|------|---------|------------|
+| string   | /usr/bin/vtysh      |          |
+
 ### `cache-directory`
 
 Directory to store runtime configuration cache

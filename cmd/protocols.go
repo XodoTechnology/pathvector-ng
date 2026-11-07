@@ -3,6 +3,7 @@ package cmd
 import (
 	"encoding/json"
 	"os"
+	"os/exec"
 	"path"
 	"sort"
 
@@ -30,6 +31,49 @@ func birdPaths(c *config.Config) (socket string, directory string) {
 		}
 	}
 	return socket, directory
+}
+
+// cairnPaths returns the cairnd control socket and Cairn config directory
+// from c, falling back to config defaults when unset.
+func cairnPaths(c *config.Config) (socket string, directory string) {
+	var def config.Config
+	if err := defaults.Set(&def); err != nil {
+		log.Warnf("Setting config defaults: %v", err)
+	}
+	socket, directory = def.CairnSocket, def.CairnDirectory
+	if c != nil {
+		if c.CairnSocket != "" {
+			socket = c.CairnSocket
+		}
+		if c.CairnDirectory != "" {
+			directory = c.CairnDirectory
+		}
+	}
+	return socket, directory
+}
+
+// isCairnBackend reports whether the loaded config selects the Cairn backend.
+func isCairnBackend(c *config.Config) bool {
+	return c != nil && c.Backend == "cairn"
+}
+
+// ctrlBinary returns the cairnctrl binary path from config (or the default).
+func ctrlBinary(c *config.Config) string {
+	if c != nil && c.CairnCtrlBinary != "" {
+		return c.CairnCtrlBinary
+	}
+	var def config.Config
+	if err := defaults.Set(&def); err == nil {
+		return def.CairnCtrlBinary
+	}
+	return "/usr/bin/cairnctrl"
+}
+
+// cairnCtrl runs cairnctrl with the given arguments and returns stdout.
+func cairnCtrl(binary string, args ...string) (string, error) {
+	cmd := exec.Command(binary, args...)
+	out, err := cmd.CombinedOutput()
+	return string(out), err
 }
 
 // readProtocolNames reads the BIRD protocol name to peer name map (protocols.json) from the BIRD directory

@@ -22,6 +22,10 @@ var optimizerCmd = &cobra.Command{
 			log.Fatal(err)
 		}
 
+		if c.Backend != "bird" {
+			log.Fatalf("the route optimizer currently only supports the bird backend (got %q)", c.Backend)
+		}
+
 		log.Infof("Starting optimizer")
 		sourceMap := map[string][]string{} // peer name to list of source addresses
 		for peerName, peerData := range c.Peers {

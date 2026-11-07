@@ -3,6 +3,19 @@
 All notable changes to Pathvector NG. This project uses `vM.m` versions cut automatically
 from `main` once the e2e suite passes; PR titles feed the generated release notes.
 
+## Unreleased
+
+- **Cairn backend (`backend: cairn`)** — Pathvector NG can now render and manage
+  [Cairn](https://cairnrouting.org) (`cairnd`) natively: `cairnd.toml` +
+  `policy.conf` + `staticd.toml` output, `cairnd --check` validation,
+  `cairn-directory` deploy with hot `cairnctrl reload` (no session flap),
+  `status`/`status --json`/`restart`/`diff` mapped onto `cairnctrl`, and Cairn's
+  native Prometheus `[metrics]` endpoint. Peer/policy options are shared with the
+  BIRD backend; unsupported features warn instead of silently dropping, and
+  Cairn-enforced session-role conflicts (rr-client/rs-client/allowas-in,
+  ttl-security+multihop) are resolved with warnings. Experimental — Cairn is
+  early-release. FRR backend field reserved (`backend: frr`, planned).
+
 ## v0.1 — first Pathvector NG release
 
 Based on `natesales/pathvector` (upstream, unmaintained) + `zappiehost/pathvector` + fixes

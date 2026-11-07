@@ -724,6 +724,46 @@ module pathvector {
     default "/run/bird/bird.ctl";
     description "UNIX control socket for BIRD";
   }
+  leaf backend {
+    type string;
+    default "bird";
+    description "Routing daemon backend: bird, cairn or frr";
+  }
+  leaf cairn-directory {
+    type string;
+    default "/etc/cairn/";
+    description "Directory for Cairn configuration files (cairnd.toml, policy.conf, staticd.toml)";
+  }
+  leaf cairnd-binary {
+    type string;
+    default "/usr/sbin/cairnd";
+    description "Path to the cairnd binary";
+  }
+  leaf cairnctrl-binary {
+    type string;
+    default "/usr/bin/cairnctrl";
+    description "Path to the cairnctrl binary";
+  }
+  leaf cairn-socket {
+    type string;
+    default "/run/cairn/cairnd.sock";
+    description "UNIX control socket for cairnd";
+  }
+  leaf staticd-binary {
+    type string;
+    default "/usr/sbin/staticd";
+    description "Path to the staticd binary";
+  }
+  leaf frr-directory {
+    type string;
+    default "/etc/frr/";
+    description "Directory for FRR configuration files";
+  }
+  leaf vtysh-binary {
+    type string;
+    default "/usr/bin/vtysh";
+    description "Path to the vtysh binary";
+  }
   leaf cache-directory {
     type string;
     default "/var/run/pathvector/cache/";

@@ -26,6 +26,12 @@ var metricsCmd = &cobra.Command{
 		if listen == "" {
 			listen = c.MetricsListen
 		}
+		if c.Backend == "cairn" {
+			// cairnd serves Prometheus metrics natively on its [metrics]
+			// listener — pathvector does not need to proxy them.
+			log.Infof("backend is cairn: cairnd serves metrics natively on %s/metrics", listen)
+			return
+		}
 		birdSocket, _ := birdPaths(c)
 		if err := metrics.Serve(listen, birdSocket); err != nil {
 			log.Fatal(err)

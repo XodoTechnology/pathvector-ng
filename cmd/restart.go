@@ -8,6 +8,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/XodoTechnology/pathvector-ng/pkg/bird"
+	"github.com/XodoTechnology/pathvector-ng/pkg/config"
 )
 
 var restartAll bool
@@ -40,6 +41,12 @@ BIRD protocols, e.g. both IPv4 and IPv6 sessions) or a BIRD protocol name as sho
 		if err != nil {
 			log.Warnf("Error loading config, using default BIRD socket and directory: %s", err)
 		}
+
+		if isCairnBackend(c) {
+			runCairnRestart(c, args, restartAll)
+			return
+		}
+
 		birdSocket, birdDirectory := birdPaths(c)
 
 		var targets []string
@@ -95,4 +102,65 @@ BIRD protocols, e.g. both IPv4 and IPv6 sessions) or a BIRD protocol name as sho
 			log.Fatalf("Failed to restart %d of %d protocols", failed, len(targets))
 		}
 	},
+}
+
+// runCairnRestart resets cairnd sessions via `cairnctrl reset`. Arguments may
+// be peer names (all of the peer's neighbor addresses are reset) or raw
+// neighbor addresses. --all resets every configured neighbor.
+func runCairnRestart(c *config.Config, args []string, all bool) {
+	socket, _ := cairnPaths(c)
+	ctrl := ctrlBinary(c)
+
+	// Build peer name → neighbor addresses and address → peer name maps.
+	peerAddrs := map[string][]string{}
+	addrPeer := map[string]string{}
+	var allAddrs []string
+	for name, p := range c.Peers {
+		if p.NeighborIPs == nil {
+			continue
+		}
+		for _, nb := range *p.NeighborIPs {
+			addr := strings.SplitN(nb, "%", 2)[0]
+			peerAddrs[name] = append(peerAddrs[name], addr)
+			addrPeer[addr] = name
+			allAddrs = append(allAddrs, addr)
+		}
+	}
+
+	var targets []string
+	switch {
+	case all:
+		targets = allAddrs
+	case len(args) == 0:
+		log.Fatal("Usage: pathvector restart <name|address> [name|address...] (or --all)")
+	default:
+		seen := map[string]bool{}
+		for _, arg := range args {
+			addrs, ok := peerAddrs[arg]
+			if !ok {
+				addrs = []string{arg} // treat as a raw neighbor address
+			}
+			for _, a := range addrs {
+				if !seen[a] {
+					seen[a] = true
+					targets = append(targets, a)
+				}
+			}
+		}
+	}
+
+	failed := 0
+	for _, addr := range targets {
+		log.Debugf("Resetting %s", addr)
+		out, err := cairnCtrl(ctrl, "-s", socket, "reset", addr)
+		if err != nil {
+			log.Errorf("%s: %v: %s", addr, err, strings.TrimSpace(out))
+			failed++
+			continue
+		}
+		fmt.Print(out)
+	}
+	if failed > 0 {
+		log.Fatalf("Failed to reset %d of %d sessions", failed, len(targets))
+	}
 }

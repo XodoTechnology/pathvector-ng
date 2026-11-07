@@ -35,11 +35,16 @@ the rendered output matches the live config, 1 when they differ.`,
 			log.Fatal(err)
 		}
 
+		liveDir := c.BIRDDirectory
+		if isCairnBackend(c) {
+			liveDir = c.CairnDirectory
+		}
+
 		// diff -urN cache/ live/ — exit status 0 same, 1 differ, >1 error
 		// -I ignores the "# Update time:" header; side files that only exist in
 		// one directory are excluded.
 		//nolint:gosec
-		diff := exec.Command("diff", "-urN", "-I", "^# Update time:", "-x", "protocols.json", "-x", "pathvector.yml", "-x", "envvars", "-x", "*.json", "-x", "*.yml", "-x", ".rollback", c.CacheDirectory, c.BIRDDirectory)
+		diff := exec.Command("diff", "-urN", "-I", "^# Update time:", "-x", "protocols.json", "-x", "pathvector.yml", "-x", "envvars", "-x", "*.json", "-x", "*.yml", "-x", ".rollback", c.CacheDirectory, liveDir)
 		if !diffQuiet {
 			diff.Stdout = os.Stdout
 		}

@@ -14,9 +14,10 @@ func init() {
 
 var checkCmd = &cobra.Command{
 	Use:   "check",
-	Short: "Validate configuration: render and BIRD-validate without applying",
-	Long: `Renders the config and runs 'bird -p' validation against it without writing
-to the BIRD directory or reconfiguring BIRD. Useful as a pre-commit or CI lint
+	Short: "Validate configuration: render and daemon-validate without applying",
+	Long: `Renders the config and validates it with the configured backend's
+checker (bird -p for BIRD, cairnd --check for Cairn) without writing to the
+daemon directory or reconfiguring it. Useful as a pre-commit or CI lint
 for pathvector.yml — exits non-zero if the config is invalid.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		// dryRun + noConfigure force a validate-only run

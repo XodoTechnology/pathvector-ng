@@ -10,6 +10,7 @@ import (
 	"path"
 	"reflect"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -21,6 +22,7 @@ import (
 
 	"github.com/XodoTechnology/pathvector-ng/pkg/bird"
 	"github.com/XodoTechnology/pathvector-ng/pkg/block"
+	"github.com/XodoTechnology/pathvector-ng/pkg/cairn"
 	"github.com/XodoTechnology/pathvector-ng/pkg/config"
 	"github.com/XodoTechnology/pathvector-ng/pkg/embed"
 	"github.com/XodoTechnology/pathvector-ng/pkg/irr"
@@ -352,6 +354,13 @@ func Load(configBlob []byte) (out *config.Config, retErr error) {
 		if table <= 0 || table == c.Kernel.Table {
 			return nil, fmt.Errorf("invalid kernel table %d in kernel.tables (must be positive and differ from kernel.table)", table)
 		}
+	}
+
+	// Validate the routing daemon backend
+	switch c.Backend {
+	case "", "bird", "cairn", "frr":
+	default:
+		return nil, fmt.Errorf("invalid backend %q (must be one of bird, cairn, frr)", c.Backend)
 	}
 
 	// Validate disabled built-in protocols
@@ -907,9 +916,10 @@ func verifyIRRPolicy(peerName string, peerData *config.Peer, c *config.Config, o
 
 // peer processes a single peer. If offline is true, no live IRR or PeeringDB queries are made and only data
 // cached by previous runs is used.
-func peer(peerName string, peerData *config.Peer, c *config.Config, offline bool, wg *sync.WaitGroup) {
-	defer wg.Done()
-
+// enrichPeer runs all backend-agnostic per-peer data gathering: PeeringDB
+// lookups, IRR prefix-set/AS-set resolution, IRR policy verification and
+// fail-safe import rejection. It mutates peerData in place.
+func enrichPeer(peerName string, peerData *config.Peer, c *config.Config, offline bool) {
 	log.Debugf("Processing AS%d %s", *peerData.ASN, peerName)
 
 	// If a PeeringDB query is required
@@ -979,6 +989,15 @@ func peer(peerName string, peerData *config.Peer, c *config.Config, offline bool
 	}
 
 	util.PrintStructInfo(peerName, peerData)
+}
+
+// peer processes a single peer for the BIRD backend. If offline is true, no
+// live IRR or PeeringDB queries are made and only data cached by previous
+// runs is used.
+func peer(peerName string, peerData *config.Peer, c *config.Config, offline bool, wg *sync.WaitGroup) {
+	defer wg.Done()
+
+	enrichPeer(peerName, peerData, c, offline)
 
 	// Create peer file
 	peerFileName := path.Join(c.CacheDirectory, fmt.Sprintf("AS%d_%s.conf", *peerData.ASN, *util.Sanitize(peerName)))
@@ -1052,6 +1071,10 @@ func Run(configFilename, lockFile, version string, noConfigure, dryRun, withdraw
 		if err != nil {
 			fatalf("PeeringDB NVRS query: %s", err)
 		}
+	}
+
+	if c.Backend == "cairn" {
+		return runCairn(configFilename, c, version, noConfigure, dryRun, withdraw, offline)
 	}
 
 	// Load templates from embedded filesystem
@@ -1186,4 +1209,139 @@ func countSessions(peers map[string]*config.Peer) int {
 		count += len(*p.NeighborIPs)
 	}
 	return count
+}
+
+// peerCairn processes a single peer for the Cairn backend: enriches peer
+// data (shared with BIRD) then renders [[neighbor]] TOML and policy.conf
+// fragments into shared buffers.
+func peerCairn(peerName string, peerData *config.Peer, c *config.Config, offline bool, wg *sync.WaitGroup,
+	mu *sync.Mutex, neighbors *map[string]string, policies *map[string]string) {
+	defer wg.Done()
+
+	enrichPeer(peerName, peerData, c, offline)
+
+	toml, unsN := cairn.NeighborBlocks(peerName, peerData, c)
+	pol, unsP := cairn.PeerPolicy(peerName, peerData, c)
+	for _, u := range append(unsN, unsP...) {
+		log.Warnf("[%s] cairn backend does not support: %s", peerName, u)
+	}
+
+	mu.Lock()
+	defer mu.Unlock()
+	(*neighbors)[peerName] = toml
+	(*policies)[peerName] = pol
+}
+
+// runCairn is the Cairn-backend equivalent of Run: renders cairnd.toml,
+// policy.conf and staticd.toml into the cache directory, validates with
+// `cairnd --check`, then deploys to the Cairn config directory.
+func runCairn(configFilename string, c *config.Config, version string, noConfigure, dryRun, withdraw, offline bool) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("%v", r)
+		}
+	}()
+
+	log.Infof("Starting Pathvector NG %s (backend: cairn)", version)
+
+	// BIRD-only subsystems have no Cairn equivalent yet.
+	if len(c.VRRPInstances)+len(c.BFDInstances)+len(c.MRTInstances) > 0 {
+		log.Warn("backend cairn: vrrp/bfd/mrt instances are not supported and were skipped")
+	}
+	if c.GlobalConfig != "" {
+		log.Warn("backend cairn: global-config (raw BIRD config) is not supported and was skipped")
+	}
+
+	if withdraw {
+		log.Warn("DANGER: withdraw flag is set, withdrawing all routes")
+		c.NoAnnounce = true
+	}
+
+	if err := os.MkdirAll(c.CacheDirectory, os.FileMode(0755)); err != nil {
+		panic(fmt.Errorf("%v", err))
+	}
+
+	log.Debug("Processing peers (cairn)")
+	wg := new(sync.WaitGroup)
+	peerErrs := make(chan error, len(c.Peers))
+	var mu sync.Mutex
+	neighbors := map[string]string{}
+	policies := map[string]string{}
+	for peerName, peerData := range c.Peers {
+		wg.Add(1)
+		go func(peerName string, peerData *config.Peer) {
+			defer func() {
+				if r := recover(); r != nil {
+					peerErrs <- fmt.Errorf("[%s] %v", peerName, r)
+				}
+			}()
+			peerCairn(peerName, peerData, c, offline, wg, &mu, &neighbors, &policies)
+		}(peerName, peerData)
+	}
+	wg.Wait()
+	close(peerErrs)
+	for perr := range peerErrs {
+		if err == nil {
+			err = perr
+		} else {
+			log.Errorf("%v", perr)
+		}
+	}
+	if err != nil {
+		return err
+	}
+
+	// Assemble cairnd.toml: global header + neighbors in sorted order.
+	var toml strings.Builder
+	toml.WriteString(cairn.GlobalHeader(c))
+	names := make([]string, 0, len(neighbors))
+	for n := range neighbors {
+		names = append(names, n)
+	}
+	sort.Strings(names)
+	for _, n := range names {
+		toml.WriteString(neighbors[n])
+	}
+	cairndPath := path.Join(c.CacheDirectory, "cairnd.toml")
+	if err := os.WriteFile(cairndPath, []byte(toml.String()), 0644); err != nil {
+		fatalf("Write cairnd.toml: %v", err)
+	}
+
+	// Assemble policy.conf.
+	policyPath := path.Join(c.CacheDirectory, "policy.conf")
+	if err := os.WriteFile(policyPath, []byte(cairn.PolicyConf(c, policies)), 0644); err != nil {
+		fatalf("Write policy.conf: %v", err)
+	}
+
+	// staticd.toml — only when kernel statics or a default route exist.
+	if len(c.Kernel.Statics4)+len(c.Kernel.Statics6) > 0 {
+		staticdPath := path.Join(c.CacheDirectory, "staticd.toml")
+		if err := os.WriteFile(staticdPath, []byte(cairn.Staticd(c)), 0644); err != nil {
+			fatalf("Write staticd.toml: %v", err)
+		}
+	}
+
+	// Copy the source config for reference.
+	if err := util.CopyFile(configFilename, path.Join(c.CacheDirectory, "pathvector.yml")); err != nil {
+		fatalf("Copying Pathvector config file to cache directory: %v", err)
+	}
+
+	// Validate with cairnd --check (and staticd --check when present).
+	if err := cairn.Check(c.CairndBinary, cairndPath); err != nil {
+		return err
+	}
+	if _, err := os.Stat(path.Join(c.CacheDirectory, "staticd.toml")); err == nil {
+		if err := cairn.StaticdCheck(c.StaticdBinary, path.Join(c.CacheDirectory, "staticd.toml")); err != nil {
+			return err
+		}
+	}
+
+	if !dryRun {
+		if err := cairn.Deploy(c, c.CacheDirectory, noConfigure); err != nil {
+			return err
+		}
+	}
+
+	log.Infof("Processed %d sessions over %d peers (backend: cairn)", countSessions(c.Peers), len(c.Peers))
+	return nil
 }

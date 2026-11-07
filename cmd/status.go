@@ -11,6 +11,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/XodoTechnology/pathvector-ng/pkg/bird"
+	"github.com/XodoTechnology/pathvector-ng/pkg/config"
 	"github.com/XodoTechnology/pathvector-ng/pkg/templating"
 	"github.com/XodoTechnology/pathvector-ng/pkg/util"
 )
@@ -63,6 +64,11 @@ var statusCmd = &cobra.Command{
 		c, err := loadConfig()
 		if err != nil {
 			log.Warnf("Error loading config, falling back to no-config output parsing: %s", err)
+		}
+
+		if isCairnBackend(c) {
+			runCairnStatus(c)
+			return
 		}
 
 		birdSocket, birdDirectory := birdPaths(c)
@@ -206,6 +212,29 @@ var statusCmd = &cobra.Command{
 			return table
 		}())
 	},
+}
+
+// runCairnStatus delegates to cairnctrl: the daemon's own neighbor view,
+// which carries state, per-family route counts and policy names.
+func runCairnStatus(c *config.Config) {
+	socket, _ := cairnPaths(c)
+	ctrl := ctrlBinary(c)
+	if !jsonOut {
+		if out, err := cairnCtrl(ctrl, "-s", socket, "status"); err == nil {
+			fmt.Print(out)
+		} else {
+			log.Warnf("cairnctrl status: %v", err)
+		}
+	}
+	args := []string{"-s", socket, "neighbors"}
+	if jsonOut {
+		args = append(args, "--json")
+	}
+	out, err := cairnCtrl(ctrl, args...)
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Print(out)
 }
 
 // containsAny checks if two string slices contain any of the same elements
