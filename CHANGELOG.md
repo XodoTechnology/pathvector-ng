@@ -42,7 +42,9 @@ from `main` once the e2e suite passes; PR titles feed the generated release note
   `rpki cache tcp` syntax (FRR ≥ 10.1 only) on `frr-9.1.3`/`frr-10.0.5`.
 
 - **BIRD matrix expansion** — `tests/bird-matrix/versions.txt` now covers
-  `v2.0.7` … `v2.20.0` (adds v2.13.1, v2.16.2, v2.18.4, v2.20.0).
+  `v2.0.7` … `v3.4.0`, spanning every BIRD 2.x and 3.x release line (adds
+  v2.13.1, v2.16.2, v2.18.4, v2.20.0 and the v3.0.5–v3.4.0 lines). The
+  generated configuration is valid across the 2.x→3.x boundary.
 
 ## v0.1 — first Pathvector NG release
 

@@ -92,6 +92,14 @@ default, because `gitlab.nic.cz` is not reachable from every CI runner. Set
 | v2.18.4  | 2.18 release line                              |
 | v2.19.3  | 2.19 release line                              |
 | v2.20.0  | latest 2.x release                             |
+| v3.0.5   | first 3.x release line                         |
+| v3.1.9   | 3.1 release line                               |
+| v3.2.4   | 3.2 release line                               |
+| v3.3.3   | 3.3 release line                               |
+| v3.4.0   | latest 3.x release                             |
+
+All 3.x releases pass every config — the generated configuration is valid
+across the BIRD 2.x→3.x boundary.
 
 ## Known failures
 
