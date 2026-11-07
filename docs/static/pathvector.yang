@@ -1038,7 +1038,7 @@ module pathvector {
     leaf-list tables {
       type int64;
       ordered-by user;
-      description "Additional kernel tables to export routes to, with the same export policy as the main kernel table (BIRD protocols kernel4_table<N> and kernel6_table<N>)";
+      description "Additional kernel tables to export routes to, with the same export policy as the main kernel table (BIRD protocols kernel4_tableN and kernel6_tableN)";
     }
     leaf scan-time {
       type int64;
