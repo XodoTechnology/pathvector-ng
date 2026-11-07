@@ -13,6 +13,7 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/XodoTechnology/pathvector-ng/pkg/bird"
+	"github.com/XodoTechnology/pathvector-ng/pkg/config"
 )
 
 // Handler returns an http.Handler that renders protocol state and route counts
@@ -71,17 +72,29 @@ func Handler(socketPath string) http.Handler {
 	})
 }
 
-// Serve starts the metrics HTTP listener. It blocks until the server stops.
+// Serve starts the metrics HTTP listener for the BIRD backend. It blocks
+// until the server stops.
 func Serve(listen string, socketPath string) error {
+	return serve(listen, Handler(socketPath))
+}
+
+// ServeFRR starts the metrics HTTP listener for the FRR backend. It blocks
+// until the server stops.
+func ServeFRR(listen string, c *config.Config) error {
+	return serve(listen, FRRHandler(c))
+}
+
+// serve starts the metrics HTTP listener on the given handler.
+func serve(listen string, h http.Handler) error {
 	if listen == "" {
 		listen = "127.0.0.1:9517"
 	}
 	mux := http.NewServeMux()
-	mux.Handle("/metrics", Handler(socketPath))
+	mux.Handle("/metrics", h)
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/metrics", http.StatusFound)
 	})
-	log.Infof("[metrics] serving /metrics on %s (BIRD socket %s)", listen, socketPath)
+	log.Infof("[metrics] serving /metrics on %s", listen)
 	//nolint:gosec // read/write timeouts are not critical for a local metrics listener
 	return http.ListenAndServe(listen, mux)
 }

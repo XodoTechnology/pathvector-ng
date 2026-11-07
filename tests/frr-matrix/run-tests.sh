@@ -172,7 +172,7 @@ reset_frr_state() {
 }
 
 daemon_test() {
-  local root="$1" vtysh="$2" name="$3" frr_conf="$4"
+  local root="$1" vtysh="$2" name="$3" frr_conf="$4" test_yml="$5"
   local lp; lp="$(lib_path "$root")"
   local zebra bgpd
   zebra="$(find_bin "$root" zebra)"
@@ -276,6 +276,34 @@ daemon_test() {
        || ! grep -qE '\b(Idle|Active|OpenSent|OpenConfirm|Established|Connect)\b' <<<"${summary:-}"; then
       ok=0
     fi
+
+    # Metrics smoke check: `pathvector metrics` on the FRR backend should
+    # serve pathvector_frr_up 1 plus per-neighbor protocol series while the
+    # daemons are up. Uses a private port; python3 does the HTTP fetch (same
+    # approach as the PeeringDB stub probe above).
+    if [ "$ok" = 1 ]; then
+      local mport=19517 mpid mup=0
+      LD_LIBRARY_PATH="$lp" "$PATHVECTOR" metrics -c "$test_yml" \
+        -l "127.0.0.1:$mport" >"$work/$name.metrics.log" 2>&1 &
+      mpid=$!
+      for _ in $(seq 1 40); do
+        if python3 - "$mport" <<'PY' 2>/dev/null
+import sys, urllib.request
+port = sys.argv[1]
+body = urllib.request.urlopen(f"http://127.0.0.1:{port}/metrics", timeout=1).read()
+sys.exit(0 if b"pathvector_frr_up 1" in body and b"pathvector_protocol_up{" in body else 1)
+PY
+        then mup=1; break; fi
+        sleep 0.25
+      done
+      kill "$mpid" 2>/dev/null || true
+      wait "$mpid" 2>/dev/null || true
+      if [ "$mup" != 1 ]; then
+        ok=0
+        echo "    [daemon] metrics check failed for $name (see $work/$name.metrics.log):" >&2
+        sed 's/^/      metrics| /' "$work/$name.metrics.log" 2>/dev/null | tail -8 >&2
+      fi
+    fi
   else
     ok=0
   fi
@@ -336,7 +364,7 @@ for root in "$@"; do
       step="vtysh -C"
       if LD_LIBRARY_PATH="$lp" "$vtysh" -C -f "$cache/frr.conf" >>"$work/$name.log" 2>&1; then
         step="daemon"
-        if [ "${DAEMON_TEST:-0}" != 1 ] || daemon_test "$root" "$vtysh" "$name" "$cache/frr.conf" >>"$work/$name.log" 2>&1; then
+        if [ "${DAEMON_TEST:-0}" != 1 ] || daemon_test "$root" "$vtysh" "$name" "$cache/frr.conf" "$work/$name.yml" >>"$work/$name.log" 2>&1; then
           if is_xfail "$frr_version" "$cname"; then
             echo "    XPASS $cname (listed in $(basename "$XFAIL_FILE"), remove the entry)"
             failures+=("FRR $frr_version: $cname (unexpected pass)")

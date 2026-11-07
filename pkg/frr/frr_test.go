@@ -363,3 +363,52 @@ func TestConfigRouteMapsBeforeRouterBgp(t *testing.T) {
 		t.Errorf("import route-map not defined before neighbor reference (def=%d ref=%d)", defIdx, refIdx)
 	}
 }
+
+func TestParseNeighbors(t *testing.T) {
+	out := `{
+  "ipv4-unicast": {"peers": {"10.0.0.2": {"remoteAs": 65002, "state": "Established", "pfxRcd": 3, "pfxSnt": 5, "peerUptime": "00:10:00"}}},
+  "ipv6-unicast": {"peers": {"fd00::2": {"remoteAs": 65002, "state": "Active", "pfxRcd": 0, "pfxSnt": 1, "peerUptime": "00:00:30"}}}
+}`
+	nameByAddr := map[string]string{"10.0.0.2": "Peer", "fd00::2": "Peer"}
+	neighbors, err := parseNeighbors(out, nameByAddr)
+	if err != nil {
+		t.Fatalf("parseNeighbors: %v", err)
+	}
+	if len(neighbors) != 2 {
+		t.Fatalf("expected 2 neighbors, got %d", len(neighbors))
+	}
+	byAFI := map[string]NeighborInfo{}
+	for _, n := range neighbors {
+		byAFI[n.AFI] = n
+	}
+	v4 := byAFI["ipv4-unicast"]
+	if v4.Name != "Peer" || v4.Neighbor != "10.0.0.2" || v4.ASN != 65002 ||
+		v4.State != "Established" || v4.Imported != 3 || v4.Exported != 5 {
+		t.Fatalf("unexpected v4 neighbor: %+v", v4)
+	}
+	v6 := byAFI["ipv6-unicast"]
+	if v6.State != "Active" || v6.Imported != 0 {
+		t.Fatalf("unexpected v6 neighbor: %+v", v6)
+	}
+}
+
+func TestParseNeighborsUnknownAddress(t *testing.T) {
+	out := `{"ipv4-unicast": {"peers": {"10.9.9.9": {"remoteAs": 65003, "state": "Idle", "pfxRcd": -1, "pfxSnt": -1, "peerUptime": ""}}}}`
+	neighbors, err := parseNeighbors(out, map[string]string{})
+	if err != nil {
+		t.Fatalf("parseNeighbors: %v", err)
+	}
+	if len(neighbors) != 1 || neighbors[0].Name != "10.9.9.9" {
+		t.Fatalf("expected neighbor named by address, got %+v", neighbors)
+	}
+}
+
+func TestParseNeighborsEmpty(t *testing.T) {
+	neighbors, err := parseNeighbors(`{}`, map[string]string{})
+	if err != nil {
+		t.Fatalf("parseNeighbors: %v", err)
+	}
+	if len(neighbors) != 0 {
+		t.Fatalf("expected no neighbors, got %+v", neighbors)
+	}
+}

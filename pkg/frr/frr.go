@@ -22,6 +22,7 @@
 package frr
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -1930,4 +1931,78 @@ func Show(c *config.Config, args ...string) (string, error) {
 		return "", fmt.Errorf("vtysh %s: %s: %s", strings.Join(args, " "), err, strings.TrimSpace(string(out)))
 	}
 	return string(out), nil
+}
+
+// NeighborInfo is a single BGP neighbor parsed from `show bgp summary json`,
+// across all address families that have neighbors.
+type NeighborInfo struct {
+	Name     string // configured peer name when the address is known, else the neighbor address
+	Neighbor string // neighbor address
+	ASN      int    // remote AS number
+	State    string // session state, e.g. "Established"
+	AFI      string // address-family name, e.g. "ipv4-unicast"
+	Imported int    // prefixes received (pfxRcd)
+	Exported int    // prefixes sent (pfxSnt)
+	Uptime   string // session uptime string
+}
+
+// neighborJSON is the per-neighbor subset of `show bgp summary json` output.
+type neighborJSON struct {
+	RemoteAs int    `json:"remoteAs"`
+	State    string `json:"state"`
+	PfxRcd   int    `json:"pfxRcd"`
+	PfxSnt   int    `json:"pfxSnt"`
+	Uptime   string `json:"peerUptime"`
+}
+
+// Neighbors returns BGP neighbor state for all address families, mapping
+// neighbor addresses back to configured pathvector peer names where possible.
+func Neighbors(c *config.Config) ([]NeighborInfo, error) {
+	nameByAddr := map[string]string{}
+	for name, p := range c.Peers {
+		for _, addr := range neighborAddrs(p) {
+			nameByAddr[addr] = name
+		}
+	}
+
+	out, err := Show(c, "-c", "show bgp summary json")
+	if err != nil {
+		return nil, err
+	}
+	return parseNeighbors(out, nameByAddr)
+}
+
+// parseNeighbors parses `show bgp summary json` output into NeighborInfo
+// rows, one per neighbor per address family.
+func parseNeighbors(out string, nameByAddr map[string]string) ([]NeighborInfo, error) {
+	// `show bgp summary json` returns one object per AFI/SAFI that has
+	// neighbors, e.g. {"ipv4-unicast": {"peers": {...}}, "ipv6-unicast": {...}}.
+	var byAF map[string]struct {
+		Peers map[string]neighborJSON `json:"peers"`
+	}
+	if err := json.Unmarshal([]byte(out), &byAF); err != nil {
+		return nil, fmt.Errorf("parsing vtysh JSON: %w", err)
+	}
+
+	var neighbors []NeighborInfo
+	for afi, sec := range byAF {
+		for addr, pj := range sec.Peers {
+			name := nameByAddr[addr]
+			if name == "" {
+				name = addr
+			}
+			neighbors = append(neighbors, NeighborInfo{
+				Name:     name,
+				Neighbor: addr,
+				ASN:      pj.RemoteAs,
+				State:    pj.State,
+				AFI:      afi,
+				Imported: pj.PfxRcd,
+				Exported: pj.PfxSnt,
+				Uptime:   pj.Uptime,
+			})
+		}
+	}
+	sort.Slice(neighbors, func(i, j int) bool { return neighbors[i].Name < neighbors[j].Name })
+	return neighbors, nil
 }

@@ -16,7 +16,7 @@ func init() {
 
 var metricsCmd = &cobra.Command{
 	Use:   "metrics",
-	Short: "Serve BIRD protocol state and route counts in Prometheus format on /metrics",
+	Short: "Serve routing-daemon protocol state and route counts in Prometheus format on /metrics",
 	Run: func(cmd *cobra.Command, args []string) {
 		c, err := loadConfig()
 		if err != nil {
@@ -33,9 +33,10 @@ var metricsCmd = &cobra.Command{
 			return
 		}
 		if isFRRBackend(c) {
-			// FRR does not expose a pathvector-compatible metrics feed yet;
-			// fail loudly rather than silently falling back to birdc.
-			log.Fatal("metrics are not yet supported on the frr backend; use FRR's own monitoring or the bird backend")
+			if err := metrics.ServeFRR(listen, c); err != nil {
+				log.Fatal(err)
+			}
+			return
 		}
 		birdSocket, _ := birdPaths(c)
 		if err := metrics.Serve(listen, birdSocket); err != nil {

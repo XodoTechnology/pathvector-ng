@@ -243,15 +243,6 @@ func runCairnStatus(c *config.Config) {
 	fmt.Print(out)
 }
 
-// frrPeerJSON is the per-neighbor subset of `show bgp summary json` output.
-type frrPeerJSON struct {
-	RemoteAs int    `json:"remoteAs"`
-	State    string `json:"state"`
-	PfxRcd   int    `json:"pfxRcd"`
-	PfxSnt   int    `json:"pfxSnt"`
-	Uptime   string `json:"peerUptime"`
-}
-
 // frrSession mirrors the JSON session shape emitted by the bird backend.
 type frrSession struct {
 	Name     string `json:"name"`
@@ -270,46 +261,24 @@ type frrSession struct {
 // Neighbor addresses are mapped back to pathvector peer names using the
 // configured neighbor addresses.
 func runFRRStatus(c *config.Config) {
-	nameByAddr := map[string]string{}
-	for name, p := range c.Peers {
-		for _, addr := range peerNeighborAddrs(p) {
-			nameByAddr[addr] = name
-		}
-	}
-
-	out, err := frr.Show(c, "-c", "show bgp summary json")
+	neighbors, err := frr.Neighbors(c)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	// `show bgp summary json` returns one object per AFI/SAFI that has
-	// neighbors, e.g. {"ipv4-unicast": {"peers": {...}}, "ipv6-unicast": {...}}.
-	var byAF map[string]struct {
-		Peers map[string]frrPeerJSON `json:"peers"`
-	}
-	if err := json.Unmarshal([]byte(out), &byAF); err != nil {
-		log.Fatalf("parsing vtysh JSON: %v", err)
-	}
-
 	sessions := []frrSession{}
-	for afi, sec := range byAF {
-		for addr, pj := range sec.Peers {
-			name := nameByAddr[addr]
-			if name == "" {
-				name = addr
-			}
-			sessions = append(sessions, frrSession{
-				Name:     name,
-				Protocol: "bgp",
-				Neighbor: addr,
-				ASN:      pj.RemoteAs,
-				State:    pj.State,
-				Imported: pj.PfxRcd,
-				Exported: pj.PfxSnt,
-				Since:    pj.Uptime,
-				Info:     afi,
-			})
-		}
+	for _, n := range neighbors {
+		sessions = append(sessions, frrSession{
+			Name:     n.Name,
+			Protocol: "bgp",
+			Neighbor: n.Neighbor,
+			ASN:      n.ASN,
+			State:    n.State,
+			Imported: n.Imported,
+			Exported: n.Exported,
+			Since:    n.Uptime,
+			Info:     n.AFI,
+		})
 	}
 	sort.Slice(sessions, func(i, j int) bool { return sessions[i].Name < sessions[j].Name })
 
