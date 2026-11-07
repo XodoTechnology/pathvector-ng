@@ -15,7 +15,7 @@ jobs:
         run: |
           wget http://ftp.us.debian.org/debian/pool/main/b/bgpq4/bgpq4_0.0.6-2_amd64.deb
           sudo dpkg -i bgpq4*.deb
-          sudo apt-get update && sudo apt-get install -y bird2
+          sudo apt-get update && sudo apt-get install -y bird2 python3-flask
 
       - uses: actions/checkout@v4
 
@@ -43,5 +43,6 @@ jobs:
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           file: ./coverage.txt
+          fail_ci_if_error: false
 
       - run: make test-teardown

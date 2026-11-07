@@ -30,7 +30,17 @@ from [releases](https://github.com/XodoTechnology/pathvector-ng/releases). The `
 `pathvector` binary and `replaces`/`conflicts` the upstream `pathvector` package, so it is a drop-in replacement.
 
 > Note: the upstream `repo.pathvector.io` package repository belonged to the original author and does not carry
-> Pathvector NG builds. Install packages straight from the GitHub release assets.
+> Pathvector NG builds. Use the Xodo apt repository below, or install packages straight from the GitHub release assets.
+
+## Apt repository (Debian/Ubuntu)
+
+```shell
+curl -fsSL https://repo.xodo.net/xodo-archive-keyring.gpg -o /etc/apt/keyrings/xodo.gpg --create-dirs
+echo "deb [signed-by=/etc/apt/keyrings/xodo.gpg] https://repo.xodo.net stable main" \
+  > /etc/apt/sources.list.d/xodo.list
+apt update
+apt install pathvector-ng
+```
 
 ## Debian (Ubuntu, etc.)
 

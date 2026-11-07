@@ -5,7 +5,8 @@ name: goreleaser
 on:
   push:
     tags:
-      - 'v[0-9]+.[0-9]+.[0-9]+' # semver vmajor.minor.patch format only
+      - 'v[0-9]+.[0-9]+' # vM.m two-part (e.g. v0.1)
+      - 'v[0-9]+.[0-9]+.[0-9]+' # or full semver
 
 permissions:
   contents: write

@@ -132,6 +132,21 @@ Optional, per feature:
 
 ## Install
 
+### Debian/Ubuntu (apt repository)
+
+```shell
+curl -fsSL https://repo.xodo.net/xodo-archive-keyring.gpg -o /etc/apt/keyrings/xodo.gpg --create-dirs
+echo "deb [signed-by=/etc/apt/keyrings/xodo.gpg] https://repo.xodo.net stable main" \
+  > /etc/apt/sources.list.d/xodo.list
+apt update
+apt install pathvector-ng
+```
+
+The package installs the `pathvector` binary and systemd units, and `replaces:`/`conflicts:` the upstream
+`pathvector` package — you can drop it in on an existing install.
+
+### From a release archive or source
+
 ```shell
 install -m0755 pathvector /usr/local/sbin/pathvector
 install -m0640 /dev/null /etc/pathvector.yml       # then edit it

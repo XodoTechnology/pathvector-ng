@@ -7,6 +7,7 @@ name: auto-release
 on:
   push:
     branches: [main]
+  workflow_dispatch: # cut a release on demand from the Actions tab
 
 permissions:
   contents: write
@@ -17,6 +18,7 @@ concurrency:
 
 jobs:
   e2e:
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -28,26 +30,86 @@ jobs:
 
   tag:
     needs: e2e
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.ver.outputs.tag }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
       - name: Compute next version
         id: ver
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          latest=$(git tag -l 'v[0-9]*.[0-9]*.[0-9]*' | sed 's/^v//' | sort -t. -k1,1n -k2,2n -k3,3n | tail -1)
-          major=${latest%%.*}; rest=${latest#*.}; minor=${rest%%.*}; patch=${rest#*.}
-          msg=$(git log -1 --pretty=%B)
-          if [[ "$msg" == *"#major"* ]]; then major=$((major+1)); minor=0; patch=0
-          elif [[ "$msg" == *"#minor"* ]]; then minor=$((minor+1)); patch=0
-          else patch=$((patch+1)); fi
-          echo "tag=v${major}.${minor}.${patch}" >> "$GITHUB_OUTPUT"
-          echo "next tag: v${major}.${minor}.${patch} (from v${latest})"
-      - name: Push tag
+          latest=$(gh api "repos/${{ github.repository }}/git/refs/tags" --jq '.[].ref' \
+            | sed 's|refs/tags/||' | grep -E '^v[0-9]+\.[0-9]+(\.[0-9]+)?$' \
+            | sort -t. -k1,1n -k2,2n -k3,3n | tail -1 || true)
+          if [ -z "$latest" ]; then
+            tag="v0.1"
+          else
+            major=${latest%%.*}; rest=${latest#*.}; minor=${rest%%.*}
+            msg=$(git log -1 --pretty=%B)
+            if [[ "$msg" == *"#major"* ]]; then major=$((major+1)); minor=0; else minor=$((minor+1)); fi
+            tag="v${major}.${minor}"
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "next tag: $tag (from v${latest:-none})"
+      - name: Create tag
+        # gh release create makes the tag server-side — the same mechanism the
+        # dev-snapshot prerelease uses. git push / REST ref creation would be
+        # refused because the tagged commit modifies .github/workflows/.
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git tag "${{ steps.ver.outputs.tag }}"
-          git push origin "${{ steps.ver.outputs.tag }}"
+          set -euo pipefail
+          tag="${{ steps.ver.outputs.tag }}"
+          # If the tag ref exists on the remote, nothing to do
+          if git ls-remote --tags origin "$tag" | grep -q .; then
+            echo "Tag $tag already exists on the remote — skipping"
+            exit 0
+          fi
+          # A release object can outlive a deleted tag — remove it so
+          # gh release create can recreate tag + release cleanly.
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo "Stale release for $tag (tag deleted) — removing and recreating"
+            gh release delete "$tag" --yes || true
+          fi
+          gh release create "$tag" --target "$GITHUB_SHA" --title "$tag" --generate-notes
+          echo "created $tag"
+
+  bird-matrix:
+    needs: tag
+    uses: ./.github/workflows/bird-matrix.yml
+
+  goreleaser:
+    needs: [tag, bird-matrix]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.tag.outputs.tag }}
+          fetch-depth: 0
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+      - name: Install PDF generation dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y pandoc texlive-xetex
+      - name: Store signing files
+        run: |
+          echo "$JUNIPER_KEY" | base64 -d > vendorbuild/juniper/key.pem || true
+          echo "$JUNIPER_CERT" | base64 -d > vendorbuild/juniper/cert.pem || true
+        env:
+          JUNIPER_KEY: ${{ secrets.JUNIPER_KEY }}
+          JUNIPER_CERT: ${{ secrets.JUNIPER_CERT }}
+      - name: Run GoReleaser
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          version: '~> v2'
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

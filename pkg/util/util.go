@@ -101,21 +101,14 @@ func PrintStructInfo(label string, instance interface{}) {
 
 // PrintTable prints a table of data
 func PrintTable(header []string, data [][]string) {
-	table := tablewriter.NewWriter(os.Stdout)
-	table.SetHeader(header)
-	table.SetAutoFormatHeaders(true)
-	table.SetHeaderAlignment(tablewriter.ALIGN_LEFT)
-	table.SetAlignment(tablewriter.ALIGN_LEFT)
-	table.SetCenterSeparator("")
-	table.SetColumnSeparator("")
-	table.SetRowSeparator("")
-	table.SetHeaderLine(false)
-	table.SetBorder(false)
-	table.SetTablePadding("  ")
-	table.SetNoWhiteSpace(true)
-	table.SetAutoWrapText(false)
-	table.AppendBulk(data)
-	table.Render()
+	table := tablewriter.NewTable(os.Stdout)
+	table.Header(header)
+	for _, row := range data {
+		table.Append(row) //nolint:errcheck // rows come from the caller
+	}
+	if err := table.Render(); err != nil {
+		log.Errorf("rendering table: %s", err)
+	}
 }
 
 // RemoveFileGlob removes files by glob
