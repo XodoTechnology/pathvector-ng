@@ -7,6 +7,7 @@ name: auto-release
 on:
   push:
     branches: [main]
+  workflow_dispatch: # cut a release on demand from the Actions tab
 
 permissions:
   contents: write
