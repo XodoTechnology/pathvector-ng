@@ -65,13 +65,18 @@ func TestPeeringDbQueryAndModify(t *testing.T) {
 		{112, false},
 	}
 	for _, tc := range testCases {
-		Update(&config.Peer{
+		peer := &config.Peer{
 			ASN:              util.Ptr(tc.asn),
 			AutoImportLimits: util.Ptr(tc.auto),
 			AutoASSet:        util.Ptr(tc.auto),
 			ImportLimit4:     util.Ptr(0),
 			ImportLimit6:     util.Ptr(0),
-		}, peeringDbQueryTimeout, "", true)
+		}
+		data, err := NetworkInfo(uint32(tc.asn), peeringDbQueryTimeout, "", true)
+		if err != nil {
+			t.Fatalf("NetworkInfo(%d): %v", tc.asn, err)
+		}
+		UpdateFromData(peer, data)
 	}
 }
 

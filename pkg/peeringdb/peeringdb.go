@@ -138,15 +138,6 @@ func NetworkInfo(asn uint32, queryTimeout uint, apiKey string, useCache bool) (*
 	}
 }
 
-// Update updates peer values from PeeringDB
-func Update(peerData *config.Peer, queryTimeout uint, apiKey string, useCache bool) {
-	pDbData, err := NetworkInfo(uint32(*peerData.ASN), queryTimeout, apiKey, useCache) //nolint:gosec // ASNs are 32-bit by definition
-	if err != nil {
-		log.Fatalf("unable to get PeeringDB data: %+v", err)
-	}
-	UpdateFromData(peerData, pDbData)
-}
-
 // UpdateFromData updates peer values from already retrieved PeeringDB data
 func UpdateFromData(peerData *config.Peer, pDbData *Data) {
 	// Work on a copy, as pDbData may be shared through the in-memory cache
