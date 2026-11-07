@@ -96,6 +96,8 @@ cairn-e2e:
 	bash tests/cairn-e2e/run-tests.sh
 
 # Print the README daemon-compatibility table regenerated from the matrix
-# version files (see tests/compat-report.sh).
+# version files, and regenerate the heatmap SVG (see tests/compat-report.sh
+# and tests/gen-compat-heatmap.py).
 compat:
 	@bash tests/compat-report.sh
+	@python3 tests/gen-compat-heatmap.py

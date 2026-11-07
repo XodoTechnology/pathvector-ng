@@ -113,6 +113,10 @@ flowchart LR
     B -->|"backend: cairn"| CD["Cairn<br/><b>0.1.1</b><br/>e2e pass · private beta"]
 ```
 
+![Daemon compatibility heatmap](https://raw.githubusercontent.com/XodoTechnology/pathvector-ng/main/docs/static/img/compat-matrix.svg)
+
+*Regenerate with `tests/gen-compat-heatmap.py`.*
+
 | Backend | Daemon | Verified versions | Result |
 |---------|--------|-------------------|--------|
 | `bird` | BIRD | v2.0.7 – v3.4.0 (15 releases) | all pass — one known XFAIL (v2.0.7 + complex config) |

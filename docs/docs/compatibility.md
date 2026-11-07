@@ -24,6 +24,10 @@ matrices that run on every change to `dev`/`main`.
 Regenerate this table from the matrix version files with `make compat`
 (`tests/compat-report.sh`).
 
+![Daemon compatibility heatmap](/img/compat-matrix.svg)
+
+*Regenerate the chart with `tests/gen-compat-heatmap.py`.*
+
 <details>
 <summary>Every version exercised</summary>
 

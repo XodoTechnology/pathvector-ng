@@ -27,13 +27,18 @@ jobs:
         id: bump
         run: |
           bash tests/update-matrix-versions.sh --write
+          # Regenerate the README/docs compatibility heatmap from the new
+          # versions.txt so the chart stays in sync in the same PR.
+          python3 tests/gen-compat-heatmap.py
           if git diff --quiet -- \
-              tests/bird-matrix/versions.txt tests/frr-matrix/versions.txt; then
+              tests/bird-matrix/versions.txt tests/frr-matrix/versions.txt \
+              docs/static/img/compat-matrix.svg; then
             echo "changed=false" >> "$GITHUB_OUTPUT"
           else
             echo "changed=true" >> "$GITHUB_OUTPUT"
             git --no-pager diff -- \
-              tests/bird-matrix/versions.txt tests/frr-matrix/versions.txt
+              tests/bird-matrix/versions.txt tests/frr-matrix/versions.txt \
+              docs/static/img/compat-matrix.svg
           fi
 
       - name: Open pull request
@@ -45,7 +50,8 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           branch="bot/matrix-versions"
           git checkout -b "$branch"
-          git add tests/bird-matrix/versions.txt tests/frr-matrix/versions.txt
+          git add tests/bird-matrix/versions.txt tests/frr-matrix/versions.txt \
+            docs/static/img/compat-matrix.svg
           git commit -m "chore(tests): bump daemon matrix versions"
           git push --force-with-lease -u origin "$branch"
           # Reuse the open PR if one already exists for this branch.
