@@ -434,8 +434,10 @@ func NeighborBlocks(peerName string, p *config.Peer, c *config.Config) (string, 
 		// parity — the report/LG layers rely on it) and so policy changes
 		// re-apply without asking the neighbor to resend.
 		b.WriteString("keep_received_routes = true\n")
-		// Import limits → session prefix limit (approximation: cairn counts
-		// received prefixes, pathvector counts post-filter RIB entries).
+		// Import limits → session prefix limit. cairn counts accepted
+		// routes after import policy (docs: "after import policy"), the same
+		// semantics as pathvector's import-limit; our per-family neighbor
+		// blocks keep the counting per address family.
 		limit := derefInt(p.ImportLimit4)
 		if af == "ipv6-unicast" {
 			limit = derefInt(p.ImportLimit6)

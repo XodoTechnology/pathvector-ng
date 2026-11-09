@@ -176,12 +176,8 @@ func runCairnRestart(c *config.Config, args []string, all bool) {
 func runFRRRestart(c *config.Config, args []string, all bool) {
 	// Build peer name → neighbor addresses map (same shape as the Cairn path).
 	peerAddrs := map[string][]string{}
-	var allAddrs []string
 	for name, p := range c.Peers {
-		for _, addr := range peerNeighborAddrs(p) {
-			peerAddrs[name] = append(peerAddrs[name], addr)
-			allAddrs = append(allAddrs, addr)
-		}
+		peerAddrs[name] = append(peerAddrs[name], peerNeighborAddrs(p)...)
 	}
 
 	var targets []string

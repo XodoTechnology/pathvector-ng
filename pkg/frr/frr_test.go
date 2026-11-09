@@ -47,9 +47,8 @@ func testPeer(t *testing.T, ips []string, mutate func(*config.Peer)) *config.Pee
 	return p
 }
 
-func intp(i int) *int       { return &i }
-func boolp(b bool) *bool    { return &b }
-func strp(s string) *string { return &s }
+func intp(i int) *int    { return &i }
+func boolp(b bool) *bool { return &b }
 
 func TestSplitFamilies(t *testing.T) {
 	v4, v6 := splitFamilies([]string{"10.0.0.0/8", "2001:db8::/32", "192.0.2.0/24"})

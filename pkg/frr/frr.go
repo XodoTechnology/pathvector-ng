@@ -1792,7 +1792,6 @@ func KernelExport(c *config.Config) string {
 		if !c.Kernel.Export {
 			// export: false → reject everything BGP-originated.
 			fmt.Fprintf(&b, "route-map %s deny %d\n", rmName, seq)
-			seq += 10
 		} else if srdSet {
 			// srd-communities → permit routes carrying any of them.
 			// Standard and large matches go in separate sequences because
@@ -1811,7 +1810,6 @@ func KernelExport(c *config.Config) string {
 				seq += 10
 			}
 			fmt.Fprintf(&b, "route-map %s deny %d\n", rmName, seq)
-			seq += 10
 		} else {
 			fmt.Fprintf(&b, "route-map %s permit %d\n", rmName, seq)
 		}

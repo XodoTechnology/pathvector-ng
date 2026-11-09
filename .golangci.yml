@@ -1,0 +1,36 @@
+# golangci-lint configuration.
+# CI runs: golangci-lint run -E gosec  (default linters + gosec)
+run:
+  timeout: 5m
+
+linters:
+  enable:
+    - gosec
+
+issues:
+  exclude-rules:
+    # Daemon control binaries are config-driven by design; command
+    # arguments are internally constructed (same pattern as the birdc
+    # calls in pkg/bird, which gosec does not flag because they use
+    # constant arguments).
+    - linters: [gosec]
+      path: (pkg/(frr|cairn)/|cmd/diff\.go)
+      text: G204
+    # Generated configs and API session fragments are intentionally
+    # 0644 so the routing daemons (running as their own users) can
+    # read them — matches upstream Pathvector behavior.
+    - linters: [gosec]
+      path: pkg/(api/server|process/process)\.go
+      text: G306
+    # ASN/prefix integer conversions are domain-bounded: peer ASNs are
+    # validated 1..4294967295, PeeringDB ASNs are positive, and the
+    # power-of-ten split in asnRangeRe is only reached when lo and hi
+    # have different digit counts, which bounds p <= 1e9.
+    - linters: [gosec]
+      path: pkg/(frr/frr|api/glass|process/process|peeringdb/peeringdb_test)\.go
+      text: G115
+    # go-ping v1.2.0 carries an upstream deprecation notice; the package
+    # still works for our ICMP reachability checks.
+    - linters: [staticcheck]
+      path: pkg/(config/config|optimizer/optimizer)\.go
+      text: SA1019

@@ -96,7 +96,7 @@ func runCompat(c *config.Config) {
 		detected, err = bird.DaemonVersion(socket)
 	}
 
-	status := "supported"
+	var status string
 	switch {
 	case err != nil:
 		status = "unreachable"
