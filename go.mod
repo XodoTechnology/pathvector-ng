@@ -1,12 +1,10 @@
 module github.com/XodoTechnology/pathvector-ng
 
-go 1.23
-
-toolchain go1.24.4
+go 1.25.0
 
 require (
 	github.com/creasty/defaults v1.7.0
-	github.com/fatih/color v1.18.0
+	github.com/fatih/color v1.19.0
 	github.com/go-ping/ping v1.2.0
 	github.com/go-playground/validator/v10 v10.12.0
 	github.com/natesales/logknife v0.0.4-0.20230403055117-5e928ad4153b
@@ -38,6 +36,6 @@ require (
 	golang.org/x/crypto v0.31.0 // indirect
 	golang.org/x/net v0.33.0 // indirect
 	golang.org/x/sync v0.10.0 // indirect
-	golang.org/x/sys v0.30.0 // indirect
+	golang.org/x/sys v0.42.0 // indirect
 	golang.org/x/text v0.21.0 // indirect
 )
