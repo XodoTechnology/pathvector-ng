@@ -5,7 +5,7 @@ go 1.23
 toolchain go1.24.4
 
 require (
-	github.com/creasty/defaults v1.7.0
+	github.com/creasty/defaults v1.11.0
 	github.com/fatih/color v1.18.0
 	github.com/go-ping/ping v1.2.0
 	github.com/go-playground/validator/v10 v10.12.0
