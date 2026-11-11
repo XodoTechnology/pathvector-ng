@@ -1,8 +1,6 @@
 module github.com/XodoTechnology/pathvector-ng
 
-go 1.23
-
-toolchain go1.24.4
+go 1.26.0
 
 require (
 	github.com/creasty/defaults v1.7.0
@@ -14,7 +12,7 @@ require (
 	github.com/sirupsen/logrus v1.10.2
 	github.com/spf13/cobra v1.10.2
 	github.com/stretchr/testify v1.12.1
-	golang.org/x/mod v0.17.0
+	golang.org/x/mod v0.42.0
 	gopkg.in/yaml.v3 v3.0.1
 )
 
