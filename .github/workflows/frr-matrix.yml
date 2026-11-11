@@ -23,7 +23,7 @@ jobs:
     outputs:
       frr: ${{ steps.versions.outputs.frr }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       # versions.txt is the single source of truth for the matrix (it is also
       # what `make frr-matrix` uses), so turn it into a JSON array here
       # instead of duplicating the list in this file. Each line is "TAG" or
@@ -51,7 +51,7 @@ jobs:
       matrix:
         frr: ${{ fromJSON(needs.versions.outputs.frr) }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       # Write a single-line versions file for this matrix entry and reuse the
       # Makefile target, which builds the image (passing FRR_VERSION and the
       # optional LIBYANG_REF) and runs tests/frr-matrix/run-tests.sh in it.
