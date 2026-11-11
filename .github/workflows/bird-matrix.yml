@@ -23,7 +23,7 @@ jobs:
     outputs:
       bird: ${{ steps.versions.outputs.bird }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       # versions.txt is the single source of truth for the matrix (it is also
       # what `make bird-matrix` uses), so turn it into a JSON array here
       # instead of duplicating the list in this file.
@@ -44,7 +44,7 @@ jobs:
       matrix:
         bird: ${{ fromJSON(needs.versions.outputs.bird) }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       # Same entrypoint as running the matrix locally: builds the image for
       # this BIRD version and runs tests/bird-matrix/run-tests.sh in it
       - name: Build and test
