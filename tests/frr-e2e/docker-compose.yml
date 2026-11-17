@@ -1,0 +1,44 @@
+services:
+  router:
+    build:
+      context: ../..
+      dockerfile: tests/frr-e2e/router/Dockerfile
+    networks: [frr-e2e]
+    # SYS_ADMIN: Debian's FRR privs_init wants cap_sys_admin in the bounding
+    # set even for zebra/bgpd (upstream frr-matrix builds don't enforce this).
+    cap_add: [NET_ADMIN, SYS_ADMIN]
+    depends_on: [pdb, irr]
+  peer:
+    build:
+      context: ../..
+      dockerfile: tests/e2e/peer/Dockerfile
+    networks: [frr-e2e]
+    cap_add: [NET_ADMIN]
+    depends_on: [router]
+  peer-irr:
+    build:
+      context: ../..
+      dockerfile: tests/e2e/peer-irr/Dockerfile
+    networks: [frr-e2e]
+    cap_add: [NET_ADMIN]
+    depends_on: [router, irr]
+  pdb:
+    build:
+      context: ../..
+      dockerfile: tests/e2e/pdb/Dockerfile
+    networks: [frr-e2e]
+  irr:
+    build:
+      context: ../..
+      dockerfile: tests/e2e/irr/Dockerfile
+    networks: [frr-e2e]
+networks:
+  frr-e2e:
+    driver: bridge
+    # Dual-stack: the e2e suite exercises both an IPv4 and an IPv6 BGP
+    # session between router and peer.
+    enable_ipv6: true
+    ipam:
+      config:
+        - subnet: 10.99.0.0/24
+        - subnet: fd64:6444::/64

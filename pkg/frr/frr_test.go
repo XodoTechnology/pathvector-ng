@@ -436,6 +436,35 @@ func TestPeerConfigEnforcePeerNexthop(t *testing.T) {
 	}
 }
 
+// Regression: FRR's `match ipv6 next-hop` ORs the BGP global and link-local
+// next hops — the route-map deny fires when EITHER is permitted. IPv6 BGP
+// legitimately carries link-local next hops, so the v6 list must deny
+// fe80::/10 (with le 128 to match host prefixes) and the unset-global
+// marker ::/128 in addition to the peer's global address. Without them
+// every LL-carrying route is rejected as a foreign next hop.
+func TestPeerConfigEnforcePeerNexthopV6(t *testing.T) {
+	c := testConfig(t)
+	p := testPeer(t, []string{"2001:db8::12"}, func(p *config.Peer) {
+		p.EnforcePeerNexthop = boolp(true)
+	})
+	pb, _ := PeerConfig("nhpeer6", p, c)
+	if !strings.Contains(pb.Objects, "ipv6 prefix-list PV_NHPEER6_0_NH_V6 seq 5 deny 2001:db8::12/128") {
+		t.Errorf("next-hop list must deny the peer global address:\n%s", pb.Objects)
+	}
+	if !strings.Contains(pb.Objects, "seq 6 deny fe80::/10 le 128") {
+		t.Errorf("next-hop list must deny link-local next hops:\n%s", pb.Objects)
+	}
+	if !strings.Contains(pb.Objects, "seq 7 deny ::/128") {
+		t.Errorf("next-hop list must deny the unset-global marker:\n%s", pb.Objects)
+	}
+	if !strings.Contains(pb.Objects, "seq 10 permit ::/0 le 128") {
+		t.Errorf("next-hop list must permit everything else:\n%s", pb.Objects)
+	}
+	if !strings.Contains(pb.Objects, "match ipv6 next-hop prefix-list") {
+		t.Error("import route-map does not reference the next-hop prefix-list")
+	}
+}
+
 // Regression: soft-reconfiguration inbound must be rendered inside each
 // address-family block — the neighbor-level form only covers IPv4 unicast,
 // leaving IPv6 received/filtered routes invisible.

@@ -820,15 +820,25 @@ func renderFamily(peerName string, idx int, addr, fam string, p *config.Peer, c 
 	// ---------- enforce-peer-nexthop ----------
 	// BIRD rejects routes whose next hop is not the peer address. A route-map
 	// deny cannot negate a prefix-list match, so the list is inverted: it
-	// denies the peer address itself and permits everything else, making the
-	// seq-30 `deny ... match ip next-hop prefix-list` clause fire exactly on
+	// denies the acceptable next hops and permits everything else, making the
+	// seq-30 `deny ... match next-hop prefix-list` clause fire exactly on
 	// routes with a foreign next hop.
+	//
+	// FRR's `match ipv6 next-hop` ORs the BGP global and link-local next
+	// hops: the match fires when EITHER is permitted by the list. IPv6 BGP
+	// legitimately carries link-local next hops (RFC 2545/8950), so the
+	// list must also deny fe80::/10 (any link-local resolves on-link to the
+	// peer) and ::/128 (the unset-global marker used when only a link-local
+	// next hop was signalled). Without those, every LL-carrying route is
+	// rejected as "foreign next hop".
 	nhName := ""
 	if derefBool(p.EnforcePeerNexthop) {
 		if v6 {
 			if isV6(addr) {
 				nhName = fmt.Sprintf("%s_%d_NH_%s", base, idx, sfx)
 				fmt.Fprintf(&ob, "ipv6 prefix-list %s seq 5 deny %s/128\n", nhName, addr)
+				fmt.Fprintf(&ob, "ipv6 prefix-list %s seq 6 deny fe80::/10 le 128\n", nhName)
+				fmt.Fprintf(&ob, "ipv6 prefix-list %s seq 7 deny ::/128\n", nhName)
 				fmt.Fprintf(&ob, "ipv6 prefix-list %s seq 10 permit ::/0 le 128\n", nhName)
 			} else {
 				warns = append(warns, "enforce-peer-nexthop with IPv4 session carrying IPv6 routes")
