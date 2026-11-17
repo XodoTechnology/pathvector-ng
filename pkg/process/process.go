@@ -1418,6 +1418,16 @@ func runFRR(configFilename string, c *config.Config, version string, noConfigure
 		log.Warn("backend frr: accept-default is approximated (FRR has no direct equivalent)")
 	}
 
+	// Debian's bgpd is built --enable-rpki but ships the RTR client as a
+	// loadable module (bgpd_rpki.so via frr-rpki-rtrlib) that only loads
+	// with `-M rpki`. Without the module the `rpki`/`match rpki` lines are
+	// rejected when the daemon applies frr.conf — vtysh -C can't catch it.
+	// Render without RPKI rather than emit config the daemon will refuse.
+	if c.RPKIEnable && !frr.RPkiModuleInstalled() {
+		log.Warn("backend frr: RPKI RTR module (bgpd_rpki.so / frr-rpki-rtrlib) not installed — rendering without RPKI; install frr-rpki-rtrlib or set rpki-enable: false")
+		c.RPKIEnable = false
+	}
+
 	if withdraw {
 		log.Warn("DANGER: withdraw flag is set, withdrawing all routes")
 		c.NoAnnounce = true

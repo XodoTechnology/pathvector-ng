@@ -1917,6 +1917,76 @@ func Check(binary, configPath string) error {
 	return nil
 }
 
+// rpkiModulePaths are the module directories FRR builds use for bgpd's
+// optional modules. Debian multiarch puts them under
+// /usr/lib/<triplet>/frr/modules; other builds use /usr/lib/frr/modules
+// or /usr/lib64/frr/modules.
+var rpkiModulePaths = []string{
+	"/usr/lib/frr/modules/bgpd_rpki.so",
+	"/usr/lib64/frr/modules/bgpd_rpki.so",
+	"/usr/local/lib/frr/modules/bgpd_rpki.so",
+	"/usr/lib/*/frr/modules/bgpd_rpki.so",
+}
+
+// RPkiModuleInstalled reports whether bgpd's RPKI RTR module
+// (bgpd_rpki.so, shipped by Debian's frr-rpki-rtrlib) is present.
+// bgpd is built --enable-rpki but only registers the `rpki` config
+// commands when launched with `-M rpki`; without the module the
+// rendered `rpki cache` / `match rpki` lines are rejected at runtime
+// (vtysh -C cannot catch this — it validates syntax, not daemon
+// capabilities).
+func RPkiModuleInstalled() bool {
+	for _, p := range rpkiModulePaths {
+		if matches, _ := filepath.Glob(p); len(matches) > 0 {
+			return true
+		}
+	}
+	return false
+}
+
+// ensureDaemons makes /etc/frr/daemons match what the rendered config
+// needs: bgpd enabled (the frr backend always renders `router bgp`) and
+// `-M rpki` in bgpd_options when RPKI is enabled — Debian ships bgpd
+// with bgpd=no and no -M flags, so a stock install comes up with zebra
+// only and rejects rpki lines even with the module installed.
+// Idempotent; a missing daemons file is left alone (FRR images that
+// autostart daemons differently don't need it).
+func ensureDaemons(c *config.Config) {
+	daemons := filepath.Join(c.FRRDirectory, "daemons")
+	b, err := os.ReadFile(daemons)
+	if err != nil {
+		return
+	}
+	lines := strings.Split(string(b), "\n")
+	changed := false
+	for i, ln := range lines {
+		trim := strings.TrimSpace(ln)
+		if strings.HasPrefix(trim, "bgpd=") && !strings.Contains(trim, "bgpd=yes") {
+			lines[i] = "bgpd=yes"
+			changed = true
+		}
+		if strings.HasPrefix(trim, "bgpd_options=") {
+			inner := strings.Trim(strings.TrimPrefix(trim, "bgpd_options="), "\"")
+			inner = strings.TrimSuffix(inner, "\"")
+			inner = strings.TrimSpace(inner)
+			hasRpki := strings.Contains(inner, "-M rpki") || strings.Contains(inner, "-Mrpki")
+			if c.RPKIEnable && !hasRpki {
+				inner = strings.TrimSpace(inner + " -M rpki")
+				changed = true
+			} else if !c.RPKIEnable && hasRpki {
+				inner = strings.TrimSpace(strings.ReplaceAll(strings.ReplaceAll(inner, "-M rpki", ""), "-Mrpki", ""))
+				changed = true
+			}
+			lines[i] = fmt.Sprintf("bgpd_options=\"%s\"", inner)
+		}
+	}
+	if changed {
+		if err := os.WriteFile(daemons, []byte(strings.Join(lines, "\n")), 0640); err != nil {
+			log.Warnf("ensure daemons bgpd flags: %v", err)
+		}
+	}
+}
+
 // Deploy copies rendered files into the FRR config directory. Applying the
 // configuration to a running FRR is done with `vtysh -b` (integrated boot)
 // when the daemons are up; a plain file copy is always safe.
@@ -1924,6 +1994,7 @@ func Deploy(c *config.Config, cacheDir string, noConfigure bool) error {
 	if err := os.MkdirAll(c.FRRDirectory, os.FileMode(0755)); err != nil {
 		return fmt.Errorf("create frr directory: %w", err)
 	}
+	ensureDaemons(c)
 	files := []string{"frr.conf", "pathvector.yml"}
 	for _, f := range files {
 		src := filepath.Join(cacheDir, f)
