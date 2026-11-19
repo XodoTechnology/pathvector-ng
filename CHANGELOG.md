@@ -51,7 +51,25 @@ from `main` once the e2e suite passes; PR titles feed the generated release note
 - **BIRD matrix expansion** — `tests/bird-matrix/versions.txt` now covers
   `v2.0.7` … `v3.4.0`, spanning every BIRD 2.x and 3.x release line (adds
   v2.13.1, v2.16.2, v2.18.4, v2.20.0 and the v3.0.5–v3.4.0 lines). The
-  generated configuration is valid across the 2.x→3.x boundary.
+  generated configuration is valid across the 2.x→3.x boundary. The daemon
+  test now also runs a real `pathvector generate` (no `--dry-run`) against
+  the live daemon, so the deploy path — file move plus `configure` over the
+  control socket, including rollback on rejection — is verified on every
+  BIRD version, not just `bird -p` parse-validity.
+
+- **Hardening pass** — whole-codebase review fixes: the generate lockfile is
+  now removed on every exit path (a failed run no longer wedges later
+  generates); library code no longer calls `log.Fatal`/`os.Exit` (errors
+  propagate through the existing recover boundaries instead of killing the
+  process mid-run); `pathvector version`/`config` dispatch the daemon
+  version query per backend instead of always dialing the BIRD socket;
+  `birdsh` exits on stdin EOF; blocklist fetches use a timeout'd client
+  with status checks and guaranteed body cleanup; the IRR cache key
+  includes the server; failed BIRD `configure`s are detected via the reply
+  status code (the old `"8002"` text match was dead — reply codes are
+  stripped before matching) so rollback actually triggers; live daemon
+  configs are written atomically; BIRD status parsers and assorted index
+  operations no longer panic on malformed daemon output.
 
 - **E2E coverage expansion** — `tests/e2e/` now runs a five-container
   dual-stack lab (added an IPv6 BGP session, an IRR-filtered peer, an IRR
