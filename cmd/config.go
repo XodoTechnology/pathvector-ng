@@ -13,7 +13,6 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 
-	"github.com/XodoTechnology/pathvector-ng/pkg/bird"
 	"github.com/XodoTechnology/pathvector-ng/pkg/process"
 )
 
@@ -52,22 +51,22 @@ var configCmd = &cobra.Command{
 
 		var buf string
 
-		birdVersion := "unknown"
+		daemonName, daemonVersion := "Daemon", "unknown"
 		c, err := process.Load(cf)
 		if err != nil {
 			buf += fmt.Sprintf("# Error loading config: %s\n", err)
 		} else {
 			log.Debug("Finished loading config")
-			_, birdVersion, err = bird.RunCommand("", c.BIRDSocket)
+			daemonName, daemonVersion, err = queryDaemonVersion(c)
 			if err != nil {
-				birdVersion = fmt.Sprintf("error: %s", err)
+				daemonVersion = fmt.Sprintf("error: %s", err)
 			}
 		}
 
 		for _, line := range strings.Split(versionBanner(), "\n") {
 			buf += fmt.Sprintf("# %s\n", line)
 		}
-		buf += "# BIRD " + birdVersion + "\n"
+		buf += fmt.Sprintf("# %s %s\n", daemonName, daemonVersion)
 		buf += fmt.Sprintf("# System %s", uname())
 		if sanitize {
 			buf += "# Sanitized config"

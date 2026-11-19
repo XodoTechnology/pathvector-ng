@@ -190,7 +190,7 @@ func UpdateWithCache(peerData *config.Peer, irrServer string, queryTimeout uint,
 			} else if strings.Contains(n, ":") {
 				hasNeighbor6 = true
 			} else {
-				log.Fatalf("Invalid neighbor IP %s", n)
+				return fmt.Errorf("invalid neighbor IP %s", n)
 			}
 		}
 	}
@@ -217,8 +217,9 @@ func UpdateWithCache(peerData *config.Peer, irrServer string, queryTimeout uint,
 		bgpqArgs6 += fmt.Sprintf("-R %d", bound6)
 	}
 
-	// The cache key covers everything that changes the query result, so cached data is never used for a different query
-	cacheKey := fmt.Sprintf("%s|%s|%s", *peerData.ASSet, strings.Join(strings.Fields(bgpqArgs4), " "), strings.Join(strings.Fields(bgpqArgs6), " "))
+	// The cache key covers everything that changes the query result — including the IRR
+	// server — so cached data is never used for a different query or a different server.
+	cacheKey := fmt.Sprintf("%s|%s|%s|%s", irrServer, *peerData.ASSet, strings.Join(strings.Fields(bgpqArgs4), " "), strings.Join(strings.Fields(bgpqArgs6), " "))
 
 	var prefixesFromIRR4, prefixesFromIRR6 []string
 	err := errOffline

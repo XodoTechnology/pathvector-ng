@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"net"
 	"strings"
 
 	log "github.com/sirupsen/logrus"
@@ -81,7 +82,7 @@ BIRD protocols, e.g. both IPv4 and IPv6 sessions) or a BIRD protocol name as sho
 			}
 
 			log.Debugf("Restarting %s", target)
-			resp, _, err := bird.RunCommand(command, birdSocket)
+			resp, _, _, err := bird.RunCommand(command, birdSocket)
 			if err != nil {
 				log.Fatal(err)
 			}
@@ -204,6 +205,13 @@ func runFRRRestart(c *config.Config, args []string, all bool) {
 
 	failed := 0
 	for _, addr := range targets {
+		// `clear bgp` takes a neighbor IP (or "*" for all sessions). Reject
+		// anything else so a crafted argument can't inject extra vtysh commands.
+		if addr != "*" && net.ParseIP(addr) == nil {
+			log.Errorf("Invalid BGP neighbor address %q", addr)
+			failed++
+			continue
+		}
 		log.Debugf("Clearing BGP session %s", addr)
 		if _, err := frr.Show(c, "-c", "clear bgp "+addr); err != nil {
 			log.Errorf("%s: %v", addr, err)

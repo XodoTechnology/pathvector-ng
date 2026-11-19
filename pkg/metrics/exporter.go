@@ -22,7 +22,7 @@ func Handler(socketPath string) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/plain; version=0.0.4")
 
-		out, _, err := bird.RunCommand("show protocols all", socketPath)
+		out, _, _, err := bird.RunCommand("show protocols all", socketPath)
 		if err != nil {
 			fmt.Fprintf(w, "# HELP pathvector_bird_up Whether the BIRD control socket is reachable.\n")
 			fmt.Fprintf(w, "# TYPE pathvector_bird_up gauge\n")

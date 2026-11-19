@@ -17,15 +17,21 @@ func TestLoadTemplates(t *testing.T) {
 }
 
 func TestWriteUIFile(t *testing.T) {
-	WriteUIFile(&config.Config{WebUIFile: "/tmp/pathvector-go-test-ui.html"})
+	if err := WriteUIFile(&config.Config{WebUIFile: "/tmp/pathvector-go-test-ui.html"}); err != nil {
+		t.Error(err)
+	}
 }
 
 func TestWriteBlankVRRPConfig(t *testing.T) {
-	WriteVRRPConfig(map[string]*config.VRRPInstance{}, "/tmp/pathvector-go-test-keepalived.conf")
+	if err := WriteVRRPConfig(map[string]*config.VRRPInstance{}, "/tmp/pathvector-go-test-keepalived.conf"); err != nil {
+		t.Error(err)
+	}
 }
 
 func TestWriteVRRPConfig(t *testing.T) {
-	WriteVRRPConfig(map[string]*config.VRRPInstance{"VRRP 1": {State: "primary"}}, "/tmp/pathvector-go-test-keepalived.conf")
+	if err := WriteVRRPConfig(map[string]*config.VRRPInstance{"VRRP 1": {State: "primary"}}, "/tmp/pathvector-go-test-keepalived.conf"); err != nil {
+		t.Error(err)
+	}
 }
 
 func TestWriteVRRPConfigVIPInterface(t *testing.T) {
@@ -52,7 +58,9 @@ func TestWriteVRRPConfigVIPInterface(t *testing.T) {
 		},
 	}
 	file := filepath.Join(t.TempDir(), "keepalived.conf")
-	WriteVRRPConfig(instances, file)
+	if err := WriteVRRPConfig(instances, file); err != nil {
+		t.Fatal(err)
+	}
 
 	out, err := os.ReadFile(file)
 	if err != nil {

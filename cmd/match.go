@@ -46,7 +46,15 @@ var matchCmd = &cobra.Command{
 		if err != nil {
 			log.Fatal(err)
 		}
+		// Guard against negative or out-of-range ASNs wrapping when cast to uint32
+		if peerASN < 1 || peerASN > 4294967295 {
+			log.Fatalf("invalid ASN %d", peerASN)
+		}
 
-		fmt.Println(match.CommonIXs(uint32(matchLocalASN), uint32(peerASN), yamlFormat, peeringDbTimeout, c.PeeringDBAPIKey))
+		common, err := match.CommonIXs(uint32(matchLocalASN), uint32(peerASN), yamlFormat, peeringDbTimeout, c.PeeringDBAPIKey)
+		if err != nil {
+			log.Fatal(err)
+		}
+		fmt.Println(common)
 	},
 }

@@ -79,7 +79,7 @@ var statusCmd = &cobra.Command{
 
 		birdSocket, birdDirectory := birdPaths(c)
 
-		commandOutput, _, err := bird.RunCommand("show protocols all", birdSocket)
+		commandOutput, _, _, err := bird.RunCommand("show protocols all", birdSocket)
 		if err != nil {
 			log.Fatal(err)
 		}

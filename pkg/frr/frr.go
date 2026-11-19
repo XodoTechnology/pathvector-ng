@@ -1981,7 +1981,7 @@ func ensureDaemons(c *config.Config) {
 		}
 	}
 	if changed {
-		if err := os.WriteFile(daemons, []byte(strings.Join(lines, "\n")), 0640); err != nil {
+		if err := util.WriteFileAtomicMode(daemons, []byte(strings.Join(lines, "\n")), 0640); err != nil {
 			log.Warnf("ensure daemons bgpd flags: %v", err)
 		}
 	}

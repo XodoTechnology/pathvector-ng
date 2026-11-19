@@ -24,7 +24,7 @@ func TestBirdConn(t *testing.T) {
 	go func() {
 		defer close(clientDone)
 		time.Sleep(time.Millisecond * 10) // Wait for the server to start
-		resp, _, err := RunCommand("bird command test\n", unixSocket)
+		resp, _, _, err := RunCommand("bird command test\n", unixSocket)
 		assert.Nil(t, err)
 
 		// Print bird output as multiple lines
@@ -165,7 +165,7 @@ func TestRunCommandVersion(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			conn := fakeBIRD(t, tc.script)
 			defer conn.Close()
-			resp, version, err := runCommand(conn, tc.command)
+			resp, version, _, err := runCommand(conn, tc.command)
 			assert.Nil(t, err)
 			assert.Equal(t, tc.resp, resp)
 			assert.Equal(t, tc.version, version)
@@ -183,10 +183,24 @@ func TestReadMultiLine(t *testing.T) {
 	assert.Equal(t, "No protocols match\n", resp)
 }
 
+func TestReadWithCode(t *testing.T) {
+	// Successful configure: terminal reply code 0003
+	resp, code, err := ReadWithCode(strings.NewReader("0002-Reading configuration from bird.conf\n0003 Reconfigured\n"))
+	assert.Nil(t, err)
+	assert.Equal(t, "Reading configuration from bird.conf\nReconfigured\n", resp)
+	assert.Equal(t, "0003", code)
+
+	// Failed configure: terminal reply code 8002 (error class)
+	resp, code, err = ReadWithCode(strings.NewReader("0002-Reading configuration from bird.conf\n8002 bird.conf:3:1 syntax error, unexpected X\n"))
+	assert.Nil(t, err)
+	assert.Equal(t, "Reading configuration from bird.conf\nbird.conf:3:1 syntax error, unexpected X\n", resp)
+	assert.Equal(t, "8002", code)
+}
+
 func TestRunCommandClosed(t *testing.T) {
 	client, server := net.Pipe()
 	_ = server.Close()
-	_, _, err := runCommand(client, "show status")
+	_, _, _, err := runCommand(client, "show status")
 	assert.NotNil(t, err)
 }
 

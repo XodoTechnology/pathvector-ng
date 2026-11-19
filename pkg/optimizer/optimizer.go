@@ -28,7 +28,10 @@ type peerAvg struct {
 
 // parsePeerDelimiter parses a ASN/name string and returns the ASN and name
 func parsePeerDelimiter(i string) (string, string) {
-	parts := strings.Split(i, Delimiter)
+	parts := strings.SplitN(i, Delimiter, 2)
+	if len(parts) < 2 {
+		return i, ""
+	}
 	return parts[0], parts[1]
 }
 
@@ -281,15 +284,17 @@ func writeLocalPref(
 		return
 	}
 
-	//nolint:golint,gosec
-	if err := os.WriteFile(fileName, []byte(modified), 0644); err != nil {
+	if err := util.WriteFileAtomicMode(fileName, []byte(modified), 0644); err != nil {
 		log.Warnf("[Optimizer] writing peer file: %s", err)
 		return
 	}
 	log.Printf("[Optimizer] %s AS%s %s local-pref from %d to %d", verb, peerASN, peerName, currentLocalPref, newLocalPref)
 
 	// Run BIRD config validation on the active config
-	bird.Validate(birdBinary, birdDirectory)
+	if err := bird.Validate(birdBinary, birdDirectory); err != nil {
+		log.Warnf("[Optimizer] BIRD config validation failed: %s", err)
+		return
+	}
 
 	if !noConfigure {
 		if err := bird.Reconfigure(birdSocket); err != nil {

@@ -36,7 +36,7 @@ func Sanitize(input string) *string {
 	}
 
 	// Add peer prefix if the first character of peerName is a number
-	if unicode.IsDigit(rune(output[0])) {
+	if len(output) > 0 && unicode.IsDigit(rune(output[0])) {
 		output = "PEER_" + output
 	}
 
@@ -115,7 +115,7 @@ func PrintTable(header []string, data [][]string) {
 func RemoveFileGlob(glob string) error {
 	files, err := filepath.Glob(glob)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 	for _, f := range files {
 		if err := os.Remove(f); err != nil {
@@ -202,7 +202,7 @@ func CopyFileTo(source, destinationDir string) (err error) {
 func CopyFileToGlob(glob, dest string) error {
 	files, err := filepath.Glob(glob)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 	for _, f := range files {
 		if err := CopyFileTo(f, dest); err != nil {
@@ -222,6 +222,16 @@ func YAMLUnmarshalStrict(y []byte, v interface{}) error {
 // WriteFileAtomic writes a file via a temporary file in the same directory and a rename, creating parent
 // directories as needed, so concurrent readers never see a partially written file
 func WriteFileAtomic(path string, b []byte) error {
+	return writeFileAtomic(path, b, 0o600)
+}
+
+// WriteFileAtomicMode is WriteFileAtomic with an explicit file permission, for
+// files a daemon must read that shouldn't be world-writable or owner-only.
+func WriteFileAtomicMode(path string, b []byte, perm os.FileMode) error {
+	return writeFileAtomic(path, b, perm)
+}
+
+func writeFileAtomic(path string, b []byte, perm os.FileMode) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
 		return err
 	}
@@ -230,6 +240,12 @@ func WriteFileAtomic(path string, b []byte) error {
 		return err
 	}
 	defer os.Remove(tmp.Name()) // no-op after a successful rename
+	if perm != 0 {
+		if err := tmp.Chmod(perm); err != nil {
+			_ = tmp.Close()
+			return err
+		}
+	}
 	if _, err := tmp.Write(b); err != nil {
 		_ = tmp.Close()
 		return err

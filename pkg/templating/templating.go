@@ -234,18 +234,22 @@ var funcMap = template.FuncMap{
 		return ok
 	},
 
-	"ASPAFilter": func(asn int, aspa map[uint32][]uint32) string {
-		if providers, ok := aspa[uint32(asn)]; ok {
-			var out string
-			for i, provider := range providers {
-				out += fmt.Sprintf("bgp_path ~ [= * %d %d * =]", provider, asn)
-				if i != len(providers)-1 {
-					out += " || "
-				}
-			}
-			return fmt.Sprintf(`if !((bgp_path ~ [= %d+ =]) || (%s)) then _reject("not in authorized providers list");`, asn, out)
+	"ASPAFilter": func(asn int, aspa map[uint32][]uint32) (string, error) {
+		providers, ok := aspa[uint32(asn)]
+		if !ok {
+			// The template only calls this when the ASN is present, so reaching
+			// here means the guard and filter disagree — fail loudly rather than
+			// silently emit a config that drops the ASPA reject rule.
+			return "", fmt.Errorf("ASPA filter: ASN %d not present in authorized providers map", asn)
 		}
-		return "# CODE ERROR: ASN not in ASPA map. This should never happen."
+		var out string
+		for i, provider := range providers {
+			out += fmt.Sprintf("bgp_path ~ [= * %d %d * =]", provider, asn)
+			if i != len(providers)-1 {
+				out += " || "
+			}
+		}
+		return fmt.Sprintf(`if !((bgp_path ~ [= %d+ =]) || (%s)) then _reject("not in authorized providers list");`, asn, out), nil
 	},
 
 	"ASSet": func(asns []uint32) string {
@@ -268,42 +272,55 @@ var Template *template.Template
 func Load(fs embed.FS) error {
 	var err error
 	Template, err = template.New("").Funcs(funcMap).ParseFS(fs, "templates/*.tmpl")
-	return err
+	if err != nil {
+		return err
+	}
+	// Reset per-generation protocol-name state so repeated renders in the same
+	// process (tests, long-running embedders) don't accumulate stale names.
+	protocolNameMapLock.Lock()
+	defer protocolNameMapLock.Unlock()
+	protocolNames = nil
+	protocolNameMap = map[string]*Protocol{}
+	return nil
 }
 
 // WriteVRRPConfig writes the VRRP config to a keepalived config file
-func WriteVRRPConfig(instances map[string]*config.VRRPInstance, keepalivedConfig string) {
+func WriteVRRPConfig(instances map[string]*config.VRRPInstance, keepalivedConfig string) error {
 	if len(instances) < 1 {
 		log.Debug("No VRRP instances are defined, not writing config")
-		return
+		return nil
 	}
 
 	// Create the VRRP config file
 	keepalivedFile, err := os.Create(keepalivedConfig)
 	if err != nil {
-		log.Fatalf("Create keepalived output file: %v", err)
+		return fmt.Errorf("create keepalived output file: %w", err)
 	}
+	defer keepalivedFile.Close()
 
 	// Render the template and write to disk
 	if err := Template.ExecuteTemplate(keepalivedFile, "vrrp.tmpl", instances); err != nil {
-		log.Fatalf("Execute template: %v", err)
+		return fmt.Errorf("execute VRRP template: %w", err)
 	}
+	return nil
 }
 
 // WriteUIFile renders and writes the web UI file
-func WriteUIFile(config *config.Config) {
+func WriteUIFile(config *config.Config) error {
 	// Create the UI output file
 	log.Debug("Creating UI output file")
 	uiFileObj, err := os.Create(config.WebUIFile)
 	if err != nil {
-		log.Fatalf("Create UI output file: %v", err)
+		return fmt.Errorf("create UI output file: %w", err)
 	}
+	defer uiFileObj.Close()
 	log.Debug("Finished creating UI file")
 
 	// Render the UI template and write to disk
 	log.Debug("Writing UI file")
 	if err := Template.ExecuteTemplate(uiFileObj, "ui.tmpl", config); err != nil {
-		log.Fatalf("Execute UI template: %v", err)
+		return fmt.Errorf("execute UI template: %w", err)
 	}
 	log.Debug("Finished writing UI file")
+	return nil
 }

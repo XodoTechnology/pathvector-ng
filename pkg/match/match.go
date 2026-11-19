@@ -4,25 +4,23 @@ import (
 	"fmt"
 	"strings"
 
-	log "github.com/sirupsen/logrus"
-
 	"github.com/XodoTechnology/pathvector-ng/pkg/peeringdb"
 )
 
 // CommonIXs gets common IXPs from PeeringDB
-func CommonIXs(a uint32, b uint32, yamlFormat bool, queryTimeout uint, apiKey string) string {
+func CommonIXs(a uint32, b uint32, yamlFormat bool, queryTimeout uint, apiKey string) (string, error) {
 	networkA, err := peeringdb.IXLANs(a, queryTimeout, apiKey)
 	if err != nil {
-		log.Fatalf("AS%d: %v", a, err)
+		return "", fmt.Errorf("AS%d: %w", a, err)
 	}
 	networkB, err := peeringdb.IXLANs(b, queryTimeout, apiKey)
 	if err != nil {
-		log.Fatalf("AS%d: %v", a, err)
+		return "", fmt.Errorf("AS%d: %w", b, err)
 	}
 
 	networkBInfo, err := peeringdb.NetworkInfo(b, queryTimeout, apiKey, true)
 	if err != nil {
-		log.Fatalf("AS%d: %v", b, err)
+		return "", fmt.Errorf("AS%d: %w", b, err)
 	}
 
 	out := ""
@@ -52,5 +50,5 @@ func CommonIXs(a uint32, b uint32, yamlFormat bool, queryTimeout uint, apiKey st
 			}
 		}
 	}
-	return out
+	return out, nil
 }

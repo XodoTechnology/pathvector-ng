@@ -70,15 +70,14 @@ var (
 func networkInfo(asn uint32, queryTimeout uint, apiKey string) (*Data, error) {
 	httpClient := http.Client{Timeout: time.Second * time.Duration(queryTimeout)} //nolint:gosec // configured timeout in seconds, far below the int64 range
 	req, err := http.NewRequest(http.MethodGet, fmt.Sprintf(Endpoint+"/net?asn=%d", asn), nil)
+	if err != nil {
+		return nil, fmt.Errorf("PeeringDB GET (This peer might not have a PeeringDB page): %s", err)
+	}
 
 	if apiKey != "" {
 		req.Header.Add("AUTHORIZATION", "Api-Key "+apiKey)
 	} else if os.Getenv("PEERINGDB_API_KEY") != "" {
 		req.Header.Add("AUTHORIZATION", "Api-Key "+os.Getenv("PEERINGDB_API_KEY"))
-	}
-
-	if err != nil {
-		return nil, fmt.Errorf("PeeringDB GET (This peer might not have a PeeringDB page): %s", err)
 	}
 
 	res, err := httpClient.Do(req)

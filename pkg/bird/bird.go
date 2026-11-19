@@ -28,7 +28,9 @@ func isNumeric(b byte) bool {
 	return b >= byte('0') && b <= byte('9')
 }
 
-func read(r io.Reader, w io.Writer) bool {
+// read reads a single reply line, strips the leading 4-digit status code, writes
+// the body to w, and returns whether more lines follow along with the status code.
+func read(r io.Reader, w io.Writer) (more bool, code string) {
 	// Read from socket byte by byte, until reaching newline character
 	c := make([]byte, 1024)
 	pos := 0
@@ -50,6 +52,7 @@ func read(r io.Reader, w io.Writer) bool {
 
 	// Remove preceding status numbers
 	if pos > 4 && isNumeric(c[0]) && isNumeric(c[1]) && isNumeric(c[2]) && isNumeric(c[3]) {
+		code = string(c[0:4])
 		// There is a status number at beginning, remove it (first 5 bytes)
 		if w != nil && pos > 6 {
 			pos = 5
@@ -60,31 +63,45 @@ func read(r io.Reader, w io.Writer) bool {
 		// "dddd-" means more lines follow, "dddd " marks the last line of a reply.
 		// Codes 0xxx/8xxx/9xxx are final unless continued, e.g. "0012-s4: restarted\n s6: restarted\n0000 \n"
 		if c[4] == byte('-') {
-			return true
+			return true, code
 		}
-		return c[0] != byte('0') && c[0] != byte('8') && c[0] != byte('9')
-	} else {
-		if w != nil {
-			if _, err := w.Write(c[1:]); err != nil {
-				panic(err)
-			}
-		}
-		return true
+		return c[0] != byte('0') && c[0] != byte('8') && c[0] != byte('9'), code
 	}
+	if w != nil {
+		if _, err := w.Write(c[1:]); err != nil {
+			panic(err)
+		}
+	}
+	return true, code
 }
 
 // Read reads the full BIRD response as a string
 func Read(r io.Reader) (resp string, err error) {
+	resp, _, err = ReadWithCode(r)
+	return resp, err
+}
+
+// ReadWithCode reads the full BIRD response and also returns the terminal reply
+// status code (the code on the final reply line), or "" if the reply carried none.
+// BIRD reply codes beginning with 0 indicate success; 8xxx/9xxx indicate errors.
+func ReadWithCode(r io.Reader) (resp, code string, err error) {
 	// read panics on socket errors, so recover and return them as errors
 	defer func() {
 		if rec := recover(); rec != nil {
-			resp, err = "", fmt.Errorf("%v", rec)
+			resp, code, err = "", "", fmt.Errorf("%v", rec)
 		}
 	}()
 	var buf bytes.Buffer
-	for read(r, &buf) {
+	for {
+		more, c := read(r, &buf)
+		if c != "" {
+			code = c
+		}
+		if !more {
+			break
+		}
 	}
-	return buf.String(), nil
+	return buf.String(), code, nil
 }
 
 // ReadClean reads from the provided reader and trims unneeded whitespace and bird 4-digit numbers
@@ -164,15 +181,17 @@ const (
 // DaemonVersion queries the running BIRD's version over its control socket,
 // returning "" when it can't be determined.
 func DaemonVersion(socket string) (string, error) {
-	_, version, err := RunCommand("", socket)
+	_, version, _, err := RunCommand("", socket)
 	return version, err
 }
 
-// runCommand runs a BIRD command over an established BIRD control connection
-func runCommand(conn io.ReadWriter, command string) (string, string, error) {
-	resp, err := Read(conn)
+// runCommand runs a BIRD command over an established BIRD control connection.
+// It returns the command output, the BIRD version, the terminal reply status
+// code of the command response ("" for a version-only query), and any error.
+func runCommand(conn io.ReadWriter, command string) (resp, version, code string, err error) {
+	resp, err = Read(conn)
 	if err != nil {
-		return "", "", err
+		return "", "", "", err
 	}
 	log.Debugf("BIRD init response: %s", resp)
 
@@ -182,11 +201,11 @@ func runCommand(conn io.ReadWriter, command string) (string, string, error) {
 	if birdVersion == "" {
 		log.Debug("BIRD version not found in greeting, querying show status")
 		if _, err := conn.Write([]byte("show status\n")); err != nil {
-			return "", "", err
+			return "", "", "", err
 		}
 		statusResp, err := Read(conn)
 		if err != nil {
-			return "", "", err
+			return "", "", "", err
 		}
 		birdVersion = ParseVersion(statusResp)
 	}
@@ -199,32 +218,33 @@ func runCommand(conn io.ReadWriter, command string) (string, string, error) {
 	// An empty command only queries the version
 	command = strings.Trim(command, "\r\n")
 	if command == "" {
-		return "", birdVersion, nil
+		return "", birdVersion, "", nil
 	}
 
 	log.Debugf("Sending BIRD command: %s", command)
 	if _, err := conn.Write([]byte(command + "\n")); err != nil {
-		return "", "", err
+		return "", "", "", err
 	}
 	log.Debugf("Sent BIRD command: %s", command)
 
 	log.Debugln("Reading from socket")
-	resp, err = Read(conn)
+	resp, code, err = ReadWithCode(conn)
 	if err != nil {
-		return "", "", err
+		return "", "", "", err
 	}
 	log.Debugln("Done reading from socket")
 
-	return resp, birdVersion, nil
+	return resp, birdVersion, code, nil
 }
 
-// RunCommand runs a BIRD command and returns the output, version, and error.
-// If command is empty, only the BIRD version is queried.
-func RunCommand(command string, socket string) (string, string, error) {
+// RunCommand runs a BIRD command and returns the output, version, terminal reply
+// status code, and error. If command is empty, only the BIRD version is queried
+// and the reply code is "".
+func RunCommand(command string, socket string) (string, string, string, error) {
 	log.Debugln("Connecting to BIRD socket")
 	conn, err := net.Dial("unix", socket)
 	if err != nil {
-		return "", "", err
+		return "", "", "", err
 	}
 	//noinspection GoUnhandledErrorResult
 	defer conn.Close()
@@ -234,79 +254,73 @@ func RunCommand(command string, socket string) (string, string, error) {
 }
 
 // Validate checks if the cached configuration is syntactically valid
-func Validate(binary string, cacheDir string) {
+func Validate(binary string, cacheDir string) error {
 	log.Debugf("Validating BIRD config")
 	var outb, errb bytes.Buffer
 	birdCmd := exec.Command(binary, "-c", "bird.conf", "-p")
 	birdCmd.Dir = cacheDir
 	birdCmd.Stdout = &outb
 	birdCmd.Stderr = &errb
-	var errbT string
 	if err := birdCmd.Run(); err != nil {
 		origErr := err
-		errbT = strings.TrimSuffix(errb.String(), "\n")
+		errbT := strings.TrimSuffix(errb.String(), "\n")
+		errorMessageToLog := ""
 
 		// Check for validation error in format:
 		// bird: ./AS65530_EXAMPLE.conf:20:43 syntax error, unexpected '%'
-		match, err := regexp.MatchString(`bird:.*:\d+:\d+.*`, errbT)
-		if err != nil {
-			log.Fatalf("BIRD error regex match: %s", err)
-		}
-		errorMessageToLog := errbT
-		if match {
-			errorMessageToLog = "BIRD validation error:\n" // Clear error message so we can write the new nicely formatted one
-			respPartsSpace := strings.Split(errbT, " ")
-			respPartsColon := strings.Split(respPartsSpace[1], ":")
-			errorMessage := strings.Join(respPartsSpace[2:], " ")
-			errorFile := respPartsColon[0]
-			errorLine, err := strconv.Atoi(respPartsColon[1])
-			if err != nil {
-				log.Fatalf("BIRD error line int parse: %s", err)
-			}
-			errorChar, err := strconv.Atoi(respPartsColon[2])
-			if err != nil {
-				log.Fatalf("BIRD error line int parse: %s", err)
-			}
-			log.Debugf("Found error in %s:%d:%d message %s", errorFile, errorLine, errorChar, errorMessage)
-
-			// Read output file
-			file, err := os.Open(path.Join(cacheDir, errorFile))
-			if err != nil {
-				log.Fatalf("unable to read BIRD output file for error parsing: %s", err)
-			}
-			defer file.Close()
-
-			scanner := bufio.NewScanner(file)
-			line := 1
-			for scanner.Scan() {
-				if (line >= errorLine-1) && (line <= errorLine+1) { // Print one line above and below the error line
-					errorMessageToLog += scanner.Text() + "\n"
-				}
-				if line == errorLine {
-					// BIRD reports column 0 for errors that aren't tied to a position (e.g. "No protocol is specified")
-					indent := errorChar - 1
-					if indent < 0 {
-						indent = 0
+		// The annotated message is best-effort: any parse or file-read problem
+		// falls back to the raw BIRD stderr rather than failing differently.
+		if match, _ := regexp.MatchString(`bird:.*:\d+:\d+.*`, errbT); match {
+			if parts := strings.SplitN(errbT, " ", 3); len(parts) == 3 {
+				if respPartsColon := strings.Split(parts[1], ":"); len(respPartsColon) >= 3 {
+					errorFile := respPartsColon[0]
+					errorMessage := parts[2]
+					errorLine, lerr := strconv.Atoi(respPartsColon[1])
+					errorChar, cerr := strconv.Atoi(respPartsColon[2])
+					if lerr == nil && cerr == nil {
+						log.Debugf("Found error in %s:%d:%d message %s", errorFile, errorLine, errorChar, errorMessage)
+						annotated := "BIRD validation error:\n"
+						if file, ferr := os.Open(path.Join(cacheDir, errorFile)); ferr == nil {
+							defer file.Close()
+							scanner := bufio.NewScanner(file)
+							line := 1
+							for scanner.Scan() {
+								if (line >= errorLine-1) && (line <= errorLine+1) { // Print one line above and below the error line
+									annotated += scanner.Text() + "\n"
+								}
+								if line == errorLine {
+									// BIRD reports column 0 for errors that aren't tied to a position (e.g. "No protocol is specified")
+									indent := errorChar - 1
+									if indent < 0 {
+										indent = 0
+									}
+									annotated += strings.Repeat(" ", indent) + "^ " + errorMessage + "\n"
+								}
+								line++
+							}
+							if scanner.Err() == nil {
+								errorMessageToLog = annotated
+							}
+						}
 					}
-					errorMessageToLog += strings.Repeat(" ", indent) + "^ " + errorMessage + "\n"
 				}
-				line++
 			}
-			if err := scanner.Err(); err != nil {
-				log.Fatalf("BIRD output file scan: %s", err)
-			}
+		}
+		if errorMessageToLog == "" {
+			errorMessageToLog = errbT
 		}
 		if errorMessageToLog == "" {
 			errorMessageToLog = origErr.Error()
 		}
-		log.Fatalf("BIRD: %s\n", errorMessageToLog)
+		return fmt.Errorf("BIRD: %s", strings.TrimSpace(errorMessageToLog))
 	}
 
 	log.Infof("BIRD config validation passed")
+	return nil
 }
 
 // MoveCacheAndReconfigure moves cached files to the production BIRD directory and reconfigures
-func MoveCacheAndReconfigure(birdDirectory string, cacheDirectory string, birdSocket string, noConfigure bool) {
+func MoveCacheAndReconfigure(birdDirectory string, cacheDirectory string, birdSocket string, noConfigure bool) error {
 	// Snapshot the current live config so a rejected `configure` can be rolled
 	// back to the last-good state instead of leaving BIRD half-applied.
 	rollbackDir := path.Join(cacheDirectory, ".rollback")
@@ -327,19 +341,19 @@ func MoveCacheAndReconfigure(birdDirectory string, cacheDirectory string, birdSo
 	// Remove old configs
 	birdConfigFiles, err := filepath.Glob(path.Join(birdDirectory, "AS*.conf"))
 	if err != nil {
-		log.Fatal(err)
+		return fmt.Errorf("glob old BIRD config files: %w", err)
 	}
 	for _, f := range birdConfigFiles {
 		log.Debugf("Removing old BIRD config file %s", f)
 		if err := os.Remove(f); err != nil {
-			log.Fatalf("Removing old BIRD config files: %v", err)
+			return fmt.Errorf("removing old BIRD config files: %w", err)
 		}
 	}
 
 	// Copy from cache to bird config
 	files, err := filepath.Glob(path.Join(cacheDirectory, "*.conf"))
 	if err != nil {
-		log.Fatal(err)
+		return fmt.Errorf("glob cached config files: %w", err)
 	}
 	for _, f := range files {
 		fileNameParts := strings.Split(f, "/")
@@ -347,7 +361,7 @@ func MoveCacheAndReconfigure(birdDirectory string, cacheDirectory string, birdSo
 		newFileLoc := path.Join(birdDirectory, fileNameTail)
 		log.Debugf("Moving %s to %s", f, newFileLoc)
 		if err := util.MoveFile(f, newFileLoc); err != nil {
-			log.Fatalf("Moving cache file to bird directory: %v", err)
+			return fmt.Errorf("moving cache file to bird directory: %w", err)
 		}
 	}
 
@@ -358,7 +372,7 @@ func MoveCacheAndReconfigure(birdDirectory string, cacheDirectory string, birdSo
 		path.Join(cacheDirectory, configFilename),
 		path.Join(birdDirectory, configFilename),
 	); err != nil {
-		log.Fatalf("Moving pathvector config file: %v", err)
+		return fmt.Errorf("moving pathvector config file: %w", err)
 	}
 
 	if !noConfigure {
@@ -377,21 +391,28 @@ func MoveCacheAndReconfigure(birdDirectory string, cacheDirectory string, birdSo
 				}
 			}
 			if rerr := Reconfigure(birdSocket); rerr != nil {
-				log.Fatalf("Rollback configure also failed: %v", rerr)
+				return fmt.Errorf("rollback configure also failed: %w (cause: %v)", rerr, err)
 			}
-			log.Fatalf("Rolled back to the last-good configuration; fix the config and re-run generate (cause: %s)", err)
+			return fmt.Errorf("rolled back to the last-good configuration; fix the config and re-run generate (cause: %w)", err)
 		}
 	}
+	return nil
 }
 
 // Reconfigure tells BIRD to reload its configuration files
 func Reconfigure(birdSocket string) error {
 	log.Info("Reconfiguring BIRD")
-	resp, _, err := RunCommand("configure", birdSocket)
+	resp, _, code, err := RunCommand("configure", birdSocket)
 	if err != nil {
 		return fmt.Errorf("reconfigure: %w", err)
 	}
-	if strings.Contains(resp, "syntax error") || strings.Contains(resp, "8002") {
+	// BIRD reply codes are 4 digits; codes in the 8xxx/9xxx range are errors.
+	// (The status code is stripped from resp, so detect it via the reply code.)
+	if len(code) == 4 && (code[0] == '8' || code[0] == '9') {
+		return fmt.Errorf("BIRD configure error (reply %s): %s", code, strings.TrimSpace(resp))
+	}
+	// Fallback for replies that carry no usable status code
+	if strings.Contains(resp, "syntax error") {
 		return fmt.Errorf("BIRD configure error: %s", strings.TrimSpace(resp))
 	}
 	// Print bird output as multiple lines
@@ -474,43 +495,55 @@ func parseBGP(s string) (*BGPState, error) {
 			addressRegex.FindString(s),
 		),
 	)
-	out.NeighborAddress = strings.Split(address, "Neighbor address: ")[1]
+	if v, ok := splitFieldValue(address, "Neighbor address: "); ok {
+		out.NeighborAddress = v
+	}
 
 	neighborAS := trimRepeatingSpace(
 		trimDupSpace(
 			neighborASRegex.FindString(s),
 		),
 	)
-	neighborAS = strings.Split(neighborAS, "Neighbor AS: ")[1]
-	neighborASInt, err := strconv.ParseInt(neighborAS, 10, 32)
-	if err != nil {
-		return nil, err
+	if v, ok := splitFieldValue(neighborAS, "Neighbor AS: "); ok {
+		neighborASInt, err := strconv.ParseInt(v, 10, 32)
+		if err != nil {
+			return nil, err
+		}
+		out.NeighborAS = int(neighborASInt)
 	}
-	out.NeighborAS = int(neighborASInt)
 
 	localAS := trimRepeatingSpace(
 		trimDupSpace(
 			localASRegex.FindString(s),
 		),
 	)
-	localAS = strings.Split(localAS, "Local AS: ")[1]
-	localASInt, err := strconv.ParseInt(localAS, 10, 32)
-	if err != nil {
-		return nil, err
+	if v, ok := splitFieldValue(localAS, "Local AS: "); ok {
+		localASInt, err := strconv.ParseInt(v, 10, 32)
+		if err != nil {
+			return nil, err
+		}
+		out.LocalAS = int(localASInt)
 	}
-	out.LocalAS = int(localASInt)
 
 	neighborID := trimRepeatingSpace(
 		trimDupSpace(
 			neighborIDRegex.FindString(s),
 		),
 	)
-	neighborIDParts := strings.Split(neighborID, "Neighbor ID: ")
-	if len(neighborIDParts) > 1 {
-		out.NeighborID = neighborIDParts[1]
+	if v, ok := splitFieldValue(neighborID, "Neighbor ID: "); ok {
+		out.NeighborID = v
 	}
 
 	return out, nil
+}
+
+// splitFieldValue returns the value following prefix in s, or false if absent
+func splitFieldValue(s, prefix string) (string, bool) {
+	parts := strings.SplitN(s, prefix, 2)
+	if len(parts) < 2 {
+		return "", false
+	}
+	return parts[1], true
 }
 
 func parseRoutes(s string) (*Routes, error) {
@@ -534,6 +567,9 @@ func parseRoutes(s string) (*Routes, error) {
 
 	for r := range routesParts {
 		parts := strings.Split(routesParts[r], " ")
+		if len(parts) < 2 {
+			continue
+		}
 		num, err := strconv.ParseInt(parts[0], 10, 32)
 		if err != nil {
 			return nil, err

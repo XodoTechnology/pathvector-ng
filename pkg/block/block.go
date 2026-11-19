@@ -8,9 +8,15 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	log "github.com/sirupsen/logrus"
 )
+
+// blocklistHTTPClient fetches remote blocklists. It has a timeout so a hung
+// endpoint can't stall config loading (Combine runs on every command), and is a
+// var so tests can substitute a stub transport.
+var blocklistHTTPClient = &http.Client{Timeout: 60 * time.Second}
 
 // parseASN parses an ASN (with or without the AS prefix) and returns false if it isn't a valid 32-bit ASN
 func parseASN(s string) (uint32, bool) {
@@ -120,18 +126,25 @@ func Combine(manualBlocklist, blocklistURLs, blocklistFiles []string) []string {
 	for _, url := range blocklistURLs {
 		// Fetch the blocklist
 		//nolint:gosec
-		resp, err := http.Get(url)
+		resp, err := blocklistHTTPClient.Get(url)
 		if err != nil {
 			log.Warnf("Error fetching blocklist from %s: %s", url, err)
 			continue
 		}
 
+		// Only parse successful responses — an error page body isn't a blocklist
+		if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
+			log.Warnf("Error fetching blocklist from %s: HTTP %s", url, resp.Status)
+			resp.Body.Close()
+			continue
+		}
+
 		entries, err := fromReader(resp.Body)
+		resp.Body.Close()
 		if err != nil {
 			log.Warnf("Error reading blocklist from %s: %s", url, err)
 			continue
 		}
-		resp.Body.Close()
 		out = append(out, entries...)
 	}
 
@@ -144,11 +157,11 @@ func Combine(manualBlocklist, blocklistURLs, blocklistFiles []string) []string {
 		}
 
 		entries, err := fromReader(f)
+		f.Close()
 		if err != nil {
 			log.Warnf("Error reading blocklist file %s: %s", file, err)
 			continue
 		}
-		f.Close()
 		out = append(out, entries...)
 	}
 

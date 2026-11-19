@@ -1006,6 +1006,7 @@ func peer(peerName string, peerData *config.Peer, c *config.Config, offline bool
 	if err != nil {
 		fatalf("Create peer specific output file: %v", err)
 	}
+	defer peerSpecificFile.Close()
 
 	// Render the template and write to buffer
 	var b bytes.Buffer
@@ -1041,6 +1042,13 @@ func Run(configFilename, lockFile, version string, noConfigure, dryRun, withdraw
 		} else if os.IsNotExist(err) {
 			// If the lockfile doesn't exist, create it
 			log.Debug("Lockfile doesn't exist, creating one")
+			// Ensure the lockfile is removed on every exit path (success, panic,
+			// or recovered fatal), not just on the happy path.
+			defer func() {
+				if err := os.Remove(lockFile); err != nil && !os.IsNotExist(err) {
+					log.Warnf("Removing lockfile: %v", err)
+				}
+			}()
 			//nolint:golint,gosec
 			if err := os.WriteFile(lockFile, []byte(""), 0644); err != nil {
 				fatalf("Writing lockfile: %v", err)
@@ -1163,7 +1171,9 @@ func Run(configFilename, lockFile, version string, noConfigure, dryRun, withdraw
 	}
 
 	// Run BIRD config validation
-	bird.Validate(c.BIRDBinary, c.CacheDirectory)
+	if err := bird.Validate(c.BIRDBinary, c.CacheDirectory); err != nil {
+		fatalf("%v", err)
+	}
 
 	// Copy config file
 	log.Debug("Copying Pathvector config file to cache directory")
@@ -1180,28 +1190,26 @@ func Run(configFilename, lockFile, version string, noConfigure, dryRun, withdraw
 		}
 		file := path.Join(c.BIRDDirectory, "protocols.json")
 		log.Debugf("Writing protocol names to %s", file)
-		//nolint:golint,gosec
-		if err := os.WriteFile(file, j, 0644); err != nil {
+		if err := util.WriteFileAtomicMode(file, j, 0644); err != nil {
 			fatalf("Writing protocol names: %v", err)
 		}
 
 		// Write VRRP config
-		templating.WriteVRRPConfig(c.VRRPInstances, c.KeepalivedConfig)
+		if err := templating.WriteVRRPConfig(c.VRRPInstances, c.KeepalivedConfig); err != nil {
+			fatalf("%v", err)
+		}
 
 		if c.WebUIFile != "" {
 			log.Info("Writing web UI")
-			templating.WriteUIFile(c)
+			if err := templating.WriteUIFile(c); err != nil {
+				fatalf("%v", err)
+			}
 		}
 
-		bird.MoveCacheAndReconfigure(c.BIRDDirectory, c.CacheDirectory, c.BIRDSocket, noConfigure)
+		if err := bird.MoveCacheAndReconfigure(c.BIRDDirectory, c.CacheDirectory, c.BIRDSocket, noConfigure); err != nil {
+			fatalf("%v", err)
+		}
 	} // end dry run check
-
-	// Delete lockfile
-	if lockFile != "" {
-		if err := os.Remove(lockFile); err != nil {
-			fatalf("Removing lockfile: %v", err)
-		}
-	}
 
 	log.Infof("Processed %d sessions over %d peers in %s", countSessions(c.Peers), len(c.Peers), time.Since(startTime).Round(time.Second))
 	return nil
@@ -1307,20 +1315,20 @@ func runCairn(configFilename string, c *config.Config, version string, noConfigu
 		toml.WriteString(neighbors[n])
 	}
 	cairndPath := path.Join(c.CacheDirectory, "cairnd.toml")
-	if err := os.WriteFile(cairndPath, []byte(toml.String()), 0644); err != nil {
+	if err := util.WriteFileAtomicMode(cairndPath, []byte(toml.String()), 0644); err != nil {
 		fatalf("Write cairnd.toml: %v", err)
 	}
 
 	// Assemble policy.conf.
 	policyPath := path.Join(c.CacheDirectory, "policy.conf")
-	if err := os.WriteFile(policyPath, []byte(cairn.PolicyConf(c, policies)), 0644); err != nil {
+	if err := util.WriteFileAtomicMode(policyPath, []byte(cairn.PolicyConf(c, policies)), 0644); err != nil {
 		fatalf("Write policy.conf: %v", err)
 	}
 
 	// staticd.toml — only when kernel statics or a default route exist.
 	if len(c.Kernel.Statics4)+len(c.Kernel.Statics6) > 0 {
 		staticdPath := path.Join(c.CacheDirectory, "staticd.toml")
-		if err := os.WriteFile(staticdPath, []byte(cairn.Staticd(c)), 0644); err != nil {
+		if err := util.WriteFileAtomicMode(staticdPath, []byte(cairn.Staticd(c)), 0644); err != nil {
 			fatalf("Write staticd.toml: %v", err)
 		}
 	}
@@ -1469,7 +1477,7 @@ func runFRR(configFilename string, c *config.Config, version string, noConfigure
 	// Assemble frr.conf.
 	conf := frr.Config(c, blocks)
 	frrPath := path.Join(c.CacheDirectory, "frr.conf")
-	if err := os.WriteFile(frrPath, []byte(conf), 0644); err != nil {
+	if err := util.WriteFileAtomicMode(frrPath, []byte(conf), 0644); err != nil {
 		fatalf("Write frr.conf: %v", err)
 	}
 

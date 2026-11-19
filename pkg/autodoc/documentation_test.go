@@ -8,7 +8,7 @@ import (
 
 // TODO: lint the resulting markdown files
 func TestDocumentConfig(t *testing.T) {
-	DocumentConfig(false)
+	assert.Nil(t, DocumentConfig(false))
 }
 
 func TestSanitizeConfigName(t *testing.T) {
