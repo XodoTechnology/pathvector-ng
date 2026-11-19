@@ -14,7 +14,14 @@ harness:
 2. runs `bird -p` on the generated config again to report BIRD's own error
    message, and
 3. inside Docker (`DAEMON_TEST=1`): starts the BIRD daemon on the generated
-   config and checks `birdc show status`.
+   config, checks `birdc show status`, then runs a real
+   `pathvector generate` (without `--dry-run`) against that daemon. The
+   deploy writes a fresh render into a scratch cache, moves it into the
+   live config directory and issues `configure` over the private control
+   socket — the same `MoveCacheAndReconfigure` path production deploys
+   take, including rollback if BIRD rejects the configuration. This
+   catches BIRD versions where reconfiguring the generated config fails
+   even though `bird -p` accepts it.
 
 The test configs query PeeringDB, so the harness starts the local PeeringDB
 test API from `tests/peeringdb/` (the same one `make test-setup` uses) and no

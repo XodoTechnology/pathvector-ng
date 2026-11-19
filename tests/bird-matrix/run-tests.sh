@@ -13,8 +13,11 @@
 #      validates it with `bird -c bird.conf -p` (pkg/bird.Validate),
 #   2. re-runs `bird -p` on the generated config directly, so a parse failure
 #      is reported with BIRD's own error message, and
-#   3. (DAEMON_TEST=1 only) starts the BIRD daemon on the generated config and
-#      checks `birdc show status` over a private control socket.
+#   3. (DAEMON_TEST=1 only) starts the BIRD daemon on the generated config,
+#      checks `birdc show status` over a private control socket, then runs a
+#      real `pathvector generate` (not --dry-run) against that daemon so the
+#      deploy path — file move plus `configure` over the socket, including
+#      rollback on rejection — is exercised on every BIRD version.
 #
 # Environment:
 #   PATHVECTOR   pathvector binary to test (default: build one with `go build`)
@@ -113,7 +116,7 @@ is_xfail() {
 }
 
 daemon_test() {
-  local bird="$1" conf_dir="$2" name="$3"
+  local bird="$1" conf_dir="$2" name="$3" config="$4" run_dir="$5"
   local birdc
   birdc="$(dirname "$bird")/birdc"
   local sock="$work/$name.ctl"
@@ -128,7 +131,32 @@ daemon_test() {
     sleep 0.1
   done
   if [ -S "$sock" ] && "$birdc" -s "$sock" show status | grep -q "Daemon is up and running"; then
-    ok=0
+    # The daemon is up on the generated config. Now exercise the deploy
+    # path: `pathvector generate` without --dry-run renders into a fresh
+    # cache directory, moves the files into the live config dir the daemon
+    # reads and issues `configure` over the private socket — the same
+    # MoveCacheAndReconfigure path production deploys take, including
+    # rollback if BIRD rejects the configuration. keepalived-config and
+    # web-ui-file are redirected into $work so the run doesn't write to
+    # /etc or depend on the config's relative paths.
+    local deploy_yml="$work/$name.deploy.yml"
+    local deploy_cache="$work/$name.deploy-cache"
+    {
+      grep -Ev '^(bird-binary|cache-directory|bird-directory|bird-socket|keepalived-config|web-ui-file):' "$config"
+      echo
+      echo "bird-binary: $bird"
+      echo "bird-directory: $conf_dir"
+      echo "bird-socket: $sock"
+      echo "cache-directory: $deploy_cache"
+      echo "keepalived-config: $work/$name.keepalived.conf"
+      echo "web-ui-file: $work/$name.ui.html"
+    } >"$deploy_yml"
+    if (cd "$run_dir" && "$PATHVECTOR" generate --config "$deploy_yml") \
+      && "$birdc" -s "$sock" show status | grep -q "Daemon is up and running"; then
+      ok=0
+    else
+      echo "deploy/reconfigure failed or daemon unhealthy afterwards" >&2
+    fi
   else
     cat "$work/$name.daemon.log" >&2
   fi
@@ -171,7 +199,7 @@ for arg in "$@"; do
       step="bird -p"
       if "$bird" -p -c "$cache/bird.conf" >>"$work/$name.log" 2>&1; then
         step="daemon"
-        if [ "${DAEMON_TEST:-0}" != 1 ] || daemon_test "$bird" "$cache" "$name" >>"$work/$name.log" 2>&1; then
+        if [ "${DAEMON_TEST:-0}" != 1 ] || daemon_test "$bird" "$cache" "$name" "$config" "$work/run" >>"$work/$name.log" 2>&1; then
           if is_xfail "$bird_version" "$cname"; then
             echo "    XPASS $cname (listed in $(basename "$XFAIL_FILE"), remove the entry)"
             failures+=("BIRD $bird_version: $cname (unexpected pass)")
