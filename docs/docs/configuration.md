@@ -1527,6 +1527,14 @@ Reject routes that aren't originated by an ASN within this peer's AS set
 |------|---------|------------|
 | bool   | false      |          |
 
+### `filter-irr-origin`
+
+With `filter-irr`, also reject routes whose origin ASN isn't in the peer's IRR as-set (requires `as-set`/`auto-as-set`; members are fetched like `auto-as-set-members`). Renders the same origin-ASN check as `filter-as-set` on BIRD and FRR; unsupported on Cairn.
+
+| Type | Default | Validation |
+|------|---------|------------|
+| bool   | false      |          |
+
 ### `filter-aspa`
 
 Reject routes that aren't originated by an ASN within the authorized-providers map

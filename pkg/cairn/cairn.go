@@ -942,6 +942,9 @@ func unsupportedFeatures(p *config.Peer) []string {
 	if derefBool(p.FilterASSet) {
 		u = append(u, "filter-as-set")
 	}
+	if derefBool(p.FilterIRROrigin) {
+		u = append(u, "filter-irr-origin")
+	}
 	if derefBool(p.FilterASPA) {
 		u = append(u, "filter-aspa")
 	}

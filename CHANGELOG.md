@@ -5,6 +5,19 @@ from `main` once the e2e suite passes; PR titles feed the generated release note
 
 ## Unreleased
 
+- **New inspect commands** — `pathvector irr as-set NAME` shows an IRR
+  as-set's member ASNs and IPv4/IPv6 prefix sets, `pathvector irr aut-num
+  ASN` prints the IRR aut-num object, `pathvector pdb ASN` shows PeeringDB
+  network data (`--ixlans` for IX LAN attachments), and `pathvector doctor`
+  health-checks the routing daemon, bgpq4, IRR/RTR servers, and PeeringDB
+  (`--json` for machine-readable output).
+
+- **`filter-irr-origin` peer option** — with `filter-irr`, additionally
+  rejects routes whose origin ASN isn't in the peer's IRR as-set. Fetches
+  as-set members like `auto-as-set-members` and renders the same origin
+  check as `filter-as-set` on BIRD and FRR (reported as unsupported on
+  Cairn).
+
 - **IRR/RTR server fallback lists** — new `irr-servers` and `rtr-servers`
   options accept ordered server lists. IRR whois/bgpq4 queries try each
   server until one answers (a single server serves both address families of

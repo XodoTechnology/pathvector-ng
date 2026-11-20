@@ -206,6 +206,7 @@ type Peer struct {
 	FilterPrefixLength         *bool `yaml:"filter-prefix-length" description:"Should too large/small prefixes (IPv4 8 > len > 24 and IPv6 12 > len > 48) be rejected?" default:"true"`
 	FilterNeverViaRouteServers *bool `yaml:"filter-never-via-route-servers" description:"Should routes containing an ASN reported in PeeringDB to never be reachable via route servers be filtered?" default:"false"`
 	FilterASSet                *bool `yaml:"filter-as-set" description:"Reject routes that aren't originated by an ASN within this peer's AS set" default:"false"`
+	FilterIRROrigin            *bool `yaml:"filter-irr-origin" description:"With filter-irr, also reject routes whose origin ASN isn't in the peer's IRR as-set (requires as-set members, fetched like auto-as-set-members)" default:"false"`
 	FilterASPA                 *bool `yaml:"filter-aspa" description:"Reject routes that aren't originated by an ASN within the authorized-providers map" default:"false"`
 	FilterBlocklist            *bool `yaml:"filter-blocklist" description:"Reject ASNs, prefixes, and IPs in the global blocklist" default:"true"`
 

@@ -619,6 +619,9 @@ func Load(configBlob []byte) (out *config.Config, retErr error) {
 		if !hasASSet && *peerData.AutoASSetMembers {
 			return nil, fmt.Errorf("[%s] auto-as-set-members requires as-set or auto-as-set", peerName)
 		}
+		if !hasASSet && *peerData.FilterIRROrigin {
+			return nil, fmt.Errorf("[%s] filter-irr-origin requires as-set or auto-as-set", peerName)
+		}
 
 		// VPN tables are only defined if at least one peer exchanges L3VPN routes
 		if *peerData.L3VPN {
@@ -962,11 +965,11 @@ func enrichPeer(peerName string, peerData *config.Peer, c *config.Config, offlin
 			rejectImports(peerName, peerData, fmt.Sprintf("filter-irr is enabled but no IPv4 or IPv6 prefixes were found for %s", *peerData.ASSet))
 		}
 	}
-	if *peerData.AutoASSetMembers {
+	if *peerData.AutoASSetMembers || *peerData.FilterIRROrigin {
 		var membersFromIRR []uint32
 		var err error
 		if peerData.ASSet == nil || *peerData.ASSet == "" {
-			err = errors.New("peer has auto-as-set-members enabled and no as-set defined")
+			err = errors.New("peer has auto-as-set-members or filter-irr-origin enabled and no as-set defined")
 		} else {
 			membersFromIRR, err = irr.ASMembersWithCache(*peerData.ASSet, c.IRRServerList(), c.IRRQueryTimeout, c.BGPQArgs, irrCache, offline)
 		}
@@ -980,13 +983,14 @@ func enrichPeer(peerName string, peerData *config.Peer, c *config.Config, offlin
 			peerData.ASSetMembers = &newASSetMembers
 		}
 	}
-	if *peerData.FilterASSet && (peerData.ASSetMembers == nil || len(*peerData.ASSetMembers) < 1) {
-		if !*peerData.AutoASSetMembers {
-			fatalf("peer has filter-as-set enabled but no members in it's as-set")
+	if (*peerData.FilterASSet || *peerData.FilterIRROrigin) && (peerData.ASSetMembers == nil || len(*peerData.ASSetMembers) < 1) {
+		if !*peerData.AutoASSetMembers && !*peerData.FilterIRROrigin {
+			fatalf("peer has filter-as-set/filter-irr-origin enabled but no members in it's as-set")
 		}
-		rejectImports(peerName, peerData, "filter-as-set is enabled but no as-set members were found")
+		rejectImports(peerName, peerData, "as-set origin filtering is enabled but no as-set members were found")
 		// An empty AS set member list would render an invalid BIRD set; all imports are rejected anyway
 		peerData.FilterASSet = util.Ptr(false)
+		peerData.FilterIRROrigin = util.Ptr(false)
 	}
 
 	if *peerData.VerifyIRRPolicy {

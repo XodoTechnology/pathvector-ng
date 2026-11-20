@@ -272,3 +272,20 @@ func TestPeerVerifyIRRPolicyUnreachable(t *testing.T) {
 	runPeerOffline(t, c, "Example", true)
 	assert.False(t, *c.Peers["Example"].Disabled)
 }
+
+func TestPeerFilterIRROrigin(t *testing.T) {
+	shimBGPQ4(t, fakeBGPQ4Body("    198.51.100.0/24", "", `{"NN": [65510, 65511]}`))
+	c := loadTestPeers(t, `
+  Origin:
+    asn: 65510
+    as-set: AS-ORIGIN
+    filter-irr: true
+    filter-irr-origin: true
+    neighbors: [203.0.113.10]
+`)
+	out := runPeer(t, c, "Origin")
+	// filter-irr-origin fetches as-set members and renders the same origin check as filter-as-set
+	assert.Equal(t, []uint32{65510, 65511}, *c.Peers["Origin"].ASSetMembers)
+	assert.Contains(t, out, "AS_SET_MEMBERS = [")
+	assert.Contains(t, out, "bgp_path.last ~ AS65510_")
+}

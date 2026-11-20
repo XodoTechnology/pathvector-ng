@@ -16,12 +16,15 @@ Available Commands:
   completion  Generate the autocompletion script for the specified shell
   config      Export configuration, optionally sanitized with logknife
   diff        Show a unified diff between the rendered config and the live BIRD directory
+  doctor      Check external dependencies (daemon, IRR, RTR, PeeringDB)
   dump        Dump configuration
   generate    Generate router configuration
   help        Help about any command
+  irr         Query IRR data
   match       Find common IXPs for a given ASN
   metrics     Serve routing-daemon protocol state and route counts in Prometheus format on /metrics
   optimizer   Start optimization daemon
+  pdb         Show PeeringDB data for an ASN
   restart     Restart BIRD protocols
   status      Show protocol status
   version     Show version information

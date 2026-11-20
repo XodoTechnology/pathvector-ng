@@ -820,7 +820,7 @@ func renderFamily(peerName string, idx int, addr, fam string, p *config.Peer, c 
 
 	// ---------- AS-set origin check ----------
 	asSetName := ""
-	if derefBool(p.FilterASSet) && p.ASSetMembers != nil && len(*p.ASSetMembers) > 0 {
+	if (derefBool(p.FilterASSet) || derefBool(p.FilterIRROrigin)) && p.ASSetMembers != nil && len(*p.ASSetMembers) > 0 {
 		asSetName = base + "_ASSET"
 		fmt.Fprintf(&ob, "bgp as-path access-list %s permit %s\n", asSetName, asPathOriginRe(*p.ASSetMembers))
 	}
