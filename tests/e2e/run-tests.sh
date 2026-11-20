@@ -63,12 +63,15 @@ done
   || { echo "  FAIL originated IPv6 prefix exported to peer"; $COMPOSE exec -T peer birdc show route all | head -10; fail=$((fail+1)); }
 
 echo "== IRR filtering =="
-# The IRR peer announces 185.121.172.0/24 (in the as-set -> accepted) and
-# 185.121.173.0/24 (not in the as-set -> rejected by filter-irr).
-irr_ok=0; irr_bad=0
+# The IRR peer announces 185.121.172.0/24 (in the as-set with an IRR route
+# object -> accepted), 185.121.173.0/24 (not in the as-set -> rejected by
+# filter-irr), and 185.121.174.0/24 (in the as-set but with no IRR route
+# object -> rejected by per-prefix filter-irr-origin).
+irr_ok=0; irr_bad=0; irr_noroute=0
 for i in $(seq 1 15); do
   $COMPOSE exec -T router birdc show route 185.121.172.0/24 all 2>/dev/null | grep -q "185.121.172.0/24" && irr_ok=1
   if $COMPOSE exec -T router birdc show route 185.121.173.0/24 all 2>/dev/null | grep -q "185.121.173.0/24"; then irr_bad=1; fi
+  if $COMPOSE exec -T router birdc show route 185.121.174.0/24 all 2>/dev/null | grep -q "185.121.174.0/24"; then irr_noroute=1; fi
   [ "$irr_ok" = 1 ] && break
   sleep 2
 done
@@ -78,6 +81,14 @@ done
 [ "$irr_bad" = 0 ] \
   && { echo "  PASS non-IRR prefix rejected"; pass=$((pass+1)); } \
   || { echo "  FAIL non-IRR prefix was imported"; fail=$((fail+1)); }
+[ "$irr_noroute" = 0 ] \
+  && { echo "  PASS prefix without IRR route object rejected (filter-irr-origin)"; pass=$((pass+1)); } \
+  || { echo "  FAIL prefix without IRR route object was imported"; fail=$((fail+1)); }
+# The deployed peer config must contain the per-prefix origin check — proves
+# the !g/!6 whois path ran rather than silently falling back to coarse check.
+$COMPOSE exec -T router sh -c 'grep -l "IRR_ORIG_ALL4" /etc/bird/AS65003_*.conf' >/dev/null 2>&1 \
+  && { echo "  PASS per-prefix IRR origin filter rendered"; pass=$((pass+1)); } \
+  || { echo "  FAIL per-prefix IRR origin filter not rendered"; $COMPOSE exec -T router sh -c 'grep -l "AS_SET_MEMBERS" /etc/bird/AS65003_*.conf' || true; fail=$((fail+1)); }
 
 echo "== route optimizer =="
 # The optimizer probes an unreachable target (100% loss) and lowers the peer's
@@ -106,11 +117,18 @@ echo "== pathvector commands =="
 for i in $(seq 1 20); do $COMPOSE exec -T router birdc show status >/dev/null 2>&1 && break; sleep 2; done
 check "check"        $COMPOSE exec -T router pathvector check -c /etc/pathvector.yml --offline
 check "status"       $COMPOSE exec -T router pathvector status -c /etc/pathvector.yml
+check "audit"        $COMPOSE exec -T router pathvector audit -c /etc/pathvector.yml
 check "status json"  sh -c "$COMPOSE exec -T router pathvector status -c /etc/pathvector.yml --json | grep -q '\"state\"'"
 check "diff exit"    $COMPOSE exec -T router pathvector diff -c /etc/pathvector.yml --offline
 $COMPOSE exec -T router sh -c "pathvector metrics -c /etc/pathvector.yml -l 127.0.0.1:9517 & sleep 1; curl -s http://127.0.0.1:9517/metrics" | grep -q "pathvector_bird_up 1" \
   && { echo "  PASS metrics endpoint"; pass=$((pass+1)); } \
   || { echo "  FAIL metrics endpoint"; fail=$((fail+1)); }
+# rtr-servers renders one rpki protocol per endpoint (BIRD allows a single
+# remote per protocol); both test endpoints are unreachable but must exist.
+rpki_n=$($COMPOSE exec -T router birdc show protocols 2>/dev/null | grep -c "rpki_")
+[ "$rpki_n" -ge 2 ] \
+  && { echo "  PASS multi-RTR protocols rendered ($rpki_n)"; pass=$((pass+1)); } \
+  || { echo "  FAIL multi-RTR protocols rendered (got $rpki_n)"; $COMPOSE exec -T router birdc show protocols | grep -i rpki || true; fail=$((fail+1)); }
 
 echo "== $pass passed, $fail failed =="
 $COMPOSE down -v --remove-orphans >/dev/null 2>&1

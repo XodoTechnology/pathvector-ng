@@ -13,9 +13,11 @@ set -e
 
 # IRR-listed prefixes for the e2e AS-IRRPEER as-set (AS65003). The peer
 # announces these plus 185.121.173.0/24, which is deliberately absent here so
-# the test can prove filter-irr drops it. Distinct from the main peer's
-# 185.121.170.0/24 so the two sessions can't be confused.
-V4_PREFIXES="185.121.172.0/24"
+# the test can prove filter-irr drops it. 185.121.174.0/24 is in the as-set
+# (passes filter-irr) but has no IRR route object for AS65003, so the
+# per-prefix filter-irr-origin check must drop it. Distinct from the main
+# peer's 185.121.170.0/24 so the two sessions can't be confused.
+V4_PREFIXES="185.121.172.0/24 185.121.174.0/24"
 
 want_json=0
 want_v6=0

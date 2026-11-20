@@ -7,8 +7,13 @@ cache-directory: /var/run/pathvector/cache/
 bird-socket: /run/bird/bird.ctl
 # IRR whois stub + fake bgpq4 (tests/irr/, tests/e2e/irr/) serve the e2e
 # IRR-filtered peer. Real IRR interop is covered by bgpq4's own tests.
-irr-server: irr
+# irr-servers exercises ordered failover: 127.0.0.1:1 refuses instantly so
+# every query must fall through to the stub.
+irr-servers: ["127.0.0.1:1", "irr"]
 irr-query-timeout: 5
+# Two unreachable RTR endpoints -> two rpki protocols; proves multi-server
+# rendering doesn't break BIRD (single remote per protocol is a BIRD limit).
+rtr-servers: ["127.0.0.1:1", "127.0.0.1:2"]
 bgpq-args: ""
 optimizer:
   targets: ["192.0.2.254"] # TEST-NET, unreachable -> 100% loss -> depreferred
@@ -42,6 +47,7 @@ peers:
     import: true
     export: false
     filter-irr: true
+    filter-irr-origin: true
     as-set: AS-IRRPEER
     verify-irr-policy: true
     enforce-first-as: true
