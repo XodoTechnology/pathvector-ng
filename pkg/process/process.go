@@ -1020,6 +1020,13 @@ func enrichPeer(peerName string, peerData *config.Peer, c *config.Config, offlin
 			log.Warnf("[%s] IRR route origins cover %d prefixes (max %d); falling back to as-set origin check", peerName, len(origins), irrOriginMaxPrefixes)
 		} else if len(origins) > 0 {
 			peerData.IRRRouteOrigins, peerData.IRRRouteOriginSets = buildIRRRouteOrigins(origins)
+			for _, o := range peerData.IRRRouteOrigins {
+				if strings.Contains(o.Prefix, ":") {
+					peerData.IRROriginPrefixes6 = append(peerData.IRROriginPrefixes6, o.Prefix)
+				} else {
+					peerData.IRROriginPrefixes4 = append(peerData.IRROriginPrefixes4, o.Prefix)
+				}
+			}
 		}
 	}
 

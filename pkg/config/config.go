@@ -234,6 +234,10 @@ type Peer struct {
 	// route data gives, per prefix, the member ASNs allowed to originate it.
 	IRRRouteOrigins    []IRRRouteOrigin `yaml:"-" description:"-" default:"-"`
 	IRRRouteOriginSets []IRROriginSet   `yaml:"-" description:"-" default:"-"`
+	// IRROriginPrefixes4/6 are the per-family unions of IRRRouteOrigins
+	// prefixes, rendered as BIRD prefix-set defines (sets can't mix families).
+	IRROriginPrefixes4 []string `yaml:"-" description:"-" default:"-"`
+	IRROriginPrefixes6 []string `yaml:"-" description:"-" default:"-"`
 
 	Role         *string `yaml:"role" description:"RFC 9234 Local BGP role" default:"-"`
 	RequireRoles *bool   `yaml:"require-roles" description:"Require RFC 9234 BGP roles" default:"false"`

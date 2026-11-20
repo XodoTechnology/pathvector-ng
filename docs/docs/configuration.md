@@ -1560,7 +1560,7 @@ Reject routes that aren't originated by an ASN within this peer's AS set
 
 ### `filter-irr-origin`
 
-With `filter-irr`, reject routes whose origin isn't authorized by the peer's IRR data (requires `as-set`/`auto-as-set`; members are fetched like `auto-as-set-members`). On BIRD this renders per-prefix route-object checks: for each as-set member the IRR is queried (`!g`/`!6` whois) for the prefixes it originates, and each received route must match an IRR-authorized (prefix, origin) pair — falling back to the as-set origin check if the query fails or covers more than 2048 prefixes. On FRR the origin must be in the peer's IRR as-set. Unsupported on Cairn.
+With `filter-irr`, reject routes whose origin isn't authorized by the peer's IRR data (requires `as-set`/`auto-as-set`; members are fetched like `auto-as-set-members`). On BIRD this renders per-prefix route-object checks: for each as-set member the IRR is queried (`!g`/`!6` whois) for the prefixes it originates; each received route must fall under an IRR-authorized prefix (routes with no covering route object are rejected) and its origin ASN must be one IRR authorizes for that prefix — falling back to the as-set origin check if the query fails or covers more than 2048 prefixes. On FRR the origin must be in the peer's IRR as-set. Unsupported on Cairn.
 
 | Type | Default | Validation |
 |------|---------|------------|

@@ -30,10 +30,11 @@ from `main` once the e2e suite passes; PR titles feed the generated release note
 - **Per-prefix `filter-irr-origin` on BIRD** — the option now renders
   per-prefix route-object checks: each as-set member's originated prefixes
   are queried from the IRR (`!g`/`!6` whois) and every received route must
-  match an IRR-authorized (prefix, origin) pair, deduplicated into shared
-  origin sets. Falls back to the as-set origin check on query failure or
-  when more than 2048 prefixes are covered. FRR keeps the as-set-granularity
-  check; Cairn remains unsupported.
+  fall under an IRR-authorized prefix (routes with no covering route object
+  are rejected) with an origin ASN IRR authorizes for it, deduplicated into
+  shared origin sets split per address family. Falls back to the as-set
+  origin check on query failure or when more than 2048 prefixes are
+  covered. FRR keeps the as-set-granularity check; Cairn remains unsupported.
 
 - **`export-as-set` option** — announce routes only to peers whose ASN is a
   member of the given IRR as-set (resolved via `irr-servers`, cached like

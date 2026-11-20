@@ -295,7 +295,7 @@ func TestPeerFilterIRROriginPerPrefix(t *testing.T) {
 	shimBGPQ4(t, fakeBGPQ4Body("    185.121.172.0/24", "", `{"NN": [65003]}`))
 	whois := fakeWhoisServer(t, map[string]string{
 		"!g65003":   "A64\n185.121.172.0/24 185.121.173.0/24\nC\n",
-		"!6AS65003": "D\n",
+		"!6AS65003": "A32\n2001:db8:1::/48\nC\n",
 	})
 	c := loadTestPeers(t, `
   Origin:
@@ -313,6 +313,12 @@ func TestPeerFilterIRROriginPerPrefix(t *testing.T) {
 	assert.Contains(t, out, "define AS65003_ORIGIN_IRR_ORIG_0 = [")
 	assert.Contains(t, out, "if (net ~ 185.121.172.0/24) then { if !(bgp_path.last ~ AS65003_ORIGIN_IRR_ORIG_0) then { _reject(\"IRR origin mismatch\"); } }")
 	assert.Contains(t, out, "if (net ~ 185.121.173.0/24) then")
+	// Prefixes without any IRR route-object coverage are rejected outright;
+	// the union set is split per address family (BIRD sets can't mix families)
+	assert.Contains(t, out, "define AS65003_ORIGIN_IRR_ORIG_ALL4 = [")
+	assert.Contains(t, out, "define AS65003_ORIGIN_IRR_ORIG_ALL6 = [")
+	assert.Contains(t, out, "2001:db8:1::/48")
+	assert.Contains(t, out, "if !(net ~ AS65003_ORIGIN_IRR_ORIG_ALL4) then { _reject(\"no IRR route object\"); }")
 	// The coarse as-set check is replaced by the per-prefix check
 	assert.NotContains(t, out, "not in AS set")
 }
