@@ -303,19 +303,35 @@ Router ID (dotted quad notation)
 
 ### `irr-server`
 
-Internet routing registry server
+Internet routing registry server (used when `irr-servers` is empty)
 
 | Type | Default | Validation |
 |------|---------|------------|
 | string   | irr.irrd3.net      |          |
 
+### `irr-servers`
+
+IRR whois servers to query, tried in order until one answers (overrides `irr-server` when set)
+
+| Type | Default | Validation |
+|------|---------|------------|
+| list[string]   |       |          |
+
 ### `rtr-server`
 
-RPKI-to-router server
+RPKI-to-router server as `host:port` (used when `rtr-servers` is empty)
 
 | Type | Default | Validation |
 |------|---------|------------|
 | string   | rtr.irrd3.net:3233      |          |
+
+### `rtr-servers`
+
+RPKI RTR servers as `host:port`, for redundancy (overrides `rtr-server` when set). BIRD gets one `protocol rpki` instance per server sharing the ROA tables; FRR gets `rpki cache tcp` entries with ascending preference; Cairn gets one `[[rpki.cache]]` per server.
+
+| Type | Default | Validation |
+|------|---------|------------|
+| list[string]   |       |          |
 
 ### `bgpq-args`
 

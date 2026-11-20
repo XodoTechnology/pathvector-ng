@@ -763,18 +763,22 @@ func Load(configBlob []byte) (out *config.Config, retErr error) {
 		}
 	}
 
-	// Parse RTR server
-	if c.RTRServer != "" {
-		rtrServerParts := strings.Split(c.RTRServer, ":")
-		if len(rtrServerParts) != 2 {
-			fatalf("Invalid rtr-server '%s' format should be host:port", rtrServerParts)
-		}
-		c.RTRServerHost = rtrServerParts[0]
-		rtrServerPort, err := strconv.Atoi(rtrServerParts[1])
+	// Parse RTR servers (rtr-servers list, falling back to rtr-server)
+	for _, rtrServer := range c.RTRServerList() {
+		host, portStr, err := net.SplitHostPort(rtrServer)
 		if err != nil {
-			fatalf("Invalid RTR server port %s", rtrServerParts[1])
+			fatalf("Invalid rtr-server '%s' format should be host:port", rtrServer)
 		}
-		c.RTRServerPort = rtrServerPort
+		port, err := strconv.Atoi(portStr)
+		if err != nil || port < 1 || port > 65535 {
+			fatalf("Invalid RTR server port %s", portStr)
+		}
+		c.RTRServerEndpoints = append(c.RTRServerEndpoints, &config.RTRServerEndpoint{Host: host, Port: port})
+	}
+	// Mirror the first endpoint into the legacy single-server fields
+	if len(c.RTRServerEndpoints) > 0 {
+		c.RTRServerHost = c.RTRServerEndpoints[0].Host
+		c.RTRServerPort = c.RTRServerEndpoints[0].Port
 	}
 
 	for _, peerData := range c.Peers {
@@ -902,7 +906,7 @@ func verifyIRRPolicy(peerName string, peerData *config.Peer, c *config.Config, o
 	}
 
 	//nolint:gosec // ASNs are 32-bit by definition
-	missing, err := irr.VerifyPolicy(uint32(*peerData.ASN), uint32(c.ASN), v4, v6, c.IRRServer, c.IRRQueryTimeout, c.BGPQArgs)
+	missing, err := irr.VerifyPolicy(uint32(*peerData.ASN), uint32(c.ASN), v4, v6, c.IRRServerList(), c.IRRQueryTimeout, c.BGPQArgs)
 	if err != nil {
 		log.Warnf("[%s] unable to verify IRR policy of AS%d, leaving peer unchanged: %v", peerName, *peerData.ASN, err)
 		return
@@ -951,7 +955,7 @@ func enrichPeer(peerName string, peerData *config.Peer, c *config.Config, offlin
 	// Build IRR prefix sets. IRR failures don't abort the whole run; instead the affected peer fails safe
 	// by rejecting all imports while every other peer is generated normally.
 	if *peerData.FilterIRR {
-		if err := irr.UpdateWithCache(peerData, c.IRRServer, c.IRRQueryTimeout, c.BGPQArgs, irrCache, offline); err != nil {
+		if err := irr.UpdateWithCache(peerData, c.IRRServerList(), c.IRRQueryTimeout, c.BGPQArgs, irrCache, offline); err != nil {
 			rejectImports(peerName, peerData, fmt.Sprintf("IRR prefix set generation failed: %v", err))
 		} else if emptyPtrSlice(peerData.PrefixSet4) && emptyPtrSlice(peerData.PrefixSet6) {
 			// With no prefixes at all the template skips the prefix set check entirely, so this would otherwise accept everything
@@ -964,7 +968,7 @@ func enrichPeer(peerName string, peerData *config.Peer, c *config.Config, offlin
 		if peerData.ASSet == nil || *peerData.ASSet == "" {
 			err = errors.New("peer has auto-as-set-members enabled and no as-set defined")
 		} else {
-			membersFromIRR, err = irr.ASMembersWithCache(*peerData.ASSet, c.IRRServer, c.IRRQueryTimeout, c.BGPQArgs, irrCache, offline)
+			membersFromIRR, err = irr.ASMembersWithCache(*peerData.ASSet, c.IRRServerList(), c.IRRQueryTimeout, c.BGPQArgs, irrCache, offline)
 		}
 		if err != nil {
 			rejectImports(peerName, peerData, fmt.Sprintf("unable to get AS set members: %v", err))

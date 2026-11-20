@@ -399,11 +399,19 @@ func GlobalObjects(c *config.Config) string {
 	var b strings.Builder
 	b.WriteString("! ---- shared policy objects ----\n")
 
-	// RPKI RTR cache (FRR 9+ syntax; requires `bgpd -M rpki` and the
-	// frr-rpki-rtrlib package).
-	if c.RPKIEnable && c.RTRServerHost != "" {
+	// RPKI RTR caches (FRR 9+ syntax; requires `bgpd -M rpki` and the
+	// frr-rpki-rtrlib package). Multiple servers get ascending preferences —
+	// RTRlib prefers the lowest preference value, so the first-listed server
+	// is primary and the rest are failover caches.
+	if c.RPKIEnable && len(c.EffectiveRTREndpoints()) > 0 {
 		b.WriteString("rpki\n")
-		fmt.Fprintf(&b, " rpki cache tcp %s %d preference 1\n", c.RTRServerHost, c.RTRServerPort)
+		for i, ep := range c.EffectiveRTREndpoints() {
+			pref := i + 1
+			if pref > 255 {
+				break // FRR allows at most 255 distinct cache preferences
+			}
+			fmt.Fprintf(&b, " rpki cache tcp %s %d preference %d\n", ep.Host, ep.Port, pref)
+		}
 		b.WriteString(" exit\n")
 	}
 

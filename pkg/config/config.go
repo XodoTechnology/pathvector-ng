@@ -1,6 +1,8 @@
 package config
 
 import (
+	"strings"
+
 	"github.com/go-ping/ping"
 )
 
@@ -402,17 +404,19 @@ type Config struct {
 	ASN      int      `yaml:"asn" description:"Autonomous System Number" validate:"required" default:"0"`
 	Prefixes []string `yaml:"prefixes" description:"List of prefixes to announce"`
 
-	RouterID      string `yaml:"router-id" description:"Router ID (dotted quad notation)" validate:"required"`
-	IRRServer     string `yaml:"irr-server" description:"Internet routing registry server" default:"irr.irrd3.net"`
-	RTRServer     string `yaml:"rtr-server" description:"RPKI-to-router server" default:"rtr.irrd3.net:3233"`
-	BGPQArgs      string `yaml:"bgpq-args" description:"Additional command line arguments to pass to bgpq4" default:""`
-	KeepFiltered  bool   `yaml:"keep-filtered" description:"Should filtered routes be kept in memory?" default:"false"`
-	MergePaths    bool   `yaml:"merge-paths" description:"Should best and equivalent non-best routes be imported to build ECMP routes?" default:"false"`
-	Source4       string `yaml:"source4" description:"Source IPv4 address of BGP routes installed in the kernel (krt_prefsrc), can be overridden per peer"`
-	Source6       string `yaml:"source6" description:"Source IPv6 address of BGP routes installed in the kernel (krt_prefsrc), can be overridden per peer"`
-	DefaultRoute  bool   `yaml:"default-route" description:"Add a default route" default:"true"`
-	AcceptDefault bool   `yaml:"accept-default" description:"Should default routes be accepted from peers? When false, default routes are rejected by filter-prefix-length. When true, learned default routes are preferred over the locally generated default route and installed in the kernel." default:"false"`
-	RPKIEnable    bool   `yaml:"rpki-enable" description:"Enable RPKI protocol" default:"true"`
+	RouterID      string   `yaml:"router-id" description:"Router ID (dotted quad notation)" validate:"required"`
+	IRRServer     string   `yaml:"irr-server" description:"Internet routing registry server (used when irr-servers is empty)" default:"irr.irrd3.net"`
+	IRRServers    []string `yaml:"irr-servers" description:"IRR whois servers to query, tried in order until one answers (overrides irr-server when set)" default:"-"`
+	RTRServer     string   `yaml:"rtr-server" description:"RPKI-to-router server as host:port (used when rtr-servers is empty)" default:"rtr.irrd3.net:3233"`
+	RTRServers    []string `yaml:"rtr-servers" description:"RPKI RTR servers as host:port, for redundancy (overrides rtr-server when set)" default:"-"`
+	BGPQArgs      string   `yaml:"bgpq-args" description:"Additional command line arguments to pass to bgpq4" default:""`
+	KeepFiltered  bool     `yaml:"keep-filtered" description:"Should filtered routes be kept in memory?" default:"false"`
+	MergePaths    bool     `yaml:"merge-paths" description:"Should best and equivalent non-best routes be imported to build ECMP routes?" default:"false"`
+	Source4       string   `yaml:"source4" description:"Source IPv4 address of BGP routes installed in the kernel (krt_prefsrc), can be overridden per peer"`
+	Source6       string   `yaml:"source6" description:"Source IPv6 address of BGP routes installed in the kernel (krt_prefsrc), can be overridden per peer"`
+	DefaultRoute  bool     `yaml:"default-route" description:"Add a default route" default:"true"`
+	AcceptDefault bool     `yaml:"accept-default" description:"Should default routes be accepted from peers? When false, default routes are rejected by filter-prefix-length. When true, learned default routes are preferred over the locally generated default route and installed in the kernel." default:"false"`
+	RPKIEnable    bool     `yaml:"rpki-enable" description:"Enable RPKI protocol" default:"true"`
 
 	TransitASNs        []uint32 `yaml:"transit-asns" description:"List of ASNs to consider transit providers for filter-transit-asns (default list in config)" default:""`
 	Bogons4            []string `yaml:"bogons4" description:"List of IPv4 bogons (default list in config)" default:""`
@@ -435,21 +439,81 @@ type Config struct {
 	Optimizer     *Optimizer               `yaml:"optimizer" description:"Route optimizer options"`
 	Plugins       map[string]string        `yaml:"plugins" description:"Plugin-specific configuration"`
 
-	RTRServerHost             string   `yaml:"-" description:"-"`
-	RTRServerPort             int      `yaml:"-" description:"-"`
-	Prefixes4                 []string `yaml:"-" description:"-"`
-	L3VPN                     bool     `yaml:"-" description:"-"`
-	Prefixes6                 []string `yaml:"-" description:"-"`
-	QueryNVRS                 bool     `yaml:"-" description:"-"`
-	NVRSASNs                  []uint32 `yaml:"-" description:"-"`
-	OriginStandardCommunities []string `yaml:"-" description:"-"`
-	OriginLargeCommunities    []string `yaml:"-" description:"-"`
-	LocalStandardCommunities  []string `yaml:"-" description:"-"`
-	LocalLargeCommunities     []string `yaml:"-" description:"-"`
-	ImportStandardCommunities []string `yaml:"-" description:"-" default:"-"`
-	ImportLargeCommunities    []string `yaml:"-" description:"-" default:"-"`
-	ExportStandardCommunities []string `yaml:"-" description:"-" default:"-"`
-	ExportLargeCommunities    []string `yaml:"-" description:"-" default:"-"`
+	RTRServerHost             string               `yaml:"-" description:"-"`
+	RTRServerPort             int                  `yaml:"-" description:"-"`
+	RTRServerEndpoints        []*RTRServerEndpoint `yaml:"-" description:"-"`
+	Prefixes4                 []string             `yaml:"-" description:"-"`
+	L3VPN                     bool                 `yaml:"-" description:"-"`
+	Prefixes6                 []string             `yaml:"-" description:"-"`
+	QueryNVRS                 bool                 `yaml:"-" description:"-"`
+	NVRSASNs                  []uint32             `yaml:"-" description:"-"`
+	OriginStandardCommunities []string             `yaml:"-" description:"-"`
+	OriginLargeCommunities    []string             `yaml:"-" description:"-"`
+	LocalStandardCommunities  []string             `yaml:"-" description:"-"`
+	LocalLargeCommunities     []string             `yaml:"-" description:"-"`
+	ImportStandardCommunities []string             `yaml:"-" description:"-" default:"-"`
+	ImportLargeCommunities    []string             `yaml:"-" description:"-" default:"-"`
+	ExportStandardCommunities []string             `yaml:"-" description:"-" default:"-"`
+	ExportLargeCommunities    []string             `yaml:"-" description:"-" default:"-"`
+}
+
+// RTRServerEndpoint is a parsed RPKI RTR server (host + port)
+type RTRServerEndpoint struct {
+	Host string
+	Port int
+}
+
+// IRRServerList returns the effective IRR whois server list: irr-servers when
+// configured, otherwise the single irr-server. Empty entries are dropped.
+func (c *Config) IRRServerList() []string {
+	if len(c.IRRServers) > 0 {
+		out := make([]string, 0, len(c.IRRServers))
+		for _, s := range c.IRRServers {
+			if s = strings.TrimSpace(s); s != "" {
+				out = append(out, s)
+			}
+		}
+		if len(out) > 0 {
+			return out
+		}
+	}
+	if c.IRRServer != "" {
+		return []string{c.IRRServer}
+	}
+	return nil
+}
+
+// EffectiveRTREndpoints returns the parsed RTR server endpoints. Configs built
+// without Load's parsing (e.g. hand-constructed in tests or plugins) may only
+// set the legacy RTRServerHost/RTRServerPort fields — those are honored here.
+func (c *Config) EffectiveRTREndpoints() []*RTRServerEndpoint {
+	if len(c.RTRServerEndpoints) > 0 {
+		return c.RTRServerEndpoints
+	}
+	if c.RTRServerHost != "" {
+		return []*RTRServerEndpoint{{Host: c.RTRServerHost, Port: c.RTRServerPort}}
+	}
+	return nil
+}
+
+// RTRServerList returns the effective RTR server list as raw host:port strings:
+// rtr-servers when configured, otherwise the single rtr-server.
+func (c *Config) RTRServerList() []string {
+	if len(c.RTRServers) > 0 {
+		out := make([]string, 0, len(c.RTRServers))
+		for _, s := range c.RTRServers {
+			if s = strings.TrimSpace(s); s != "" {
+				out = append(out, s)
+			}
+		}
+		if len(out) > 0 {
+			return out
+		}
+	}
+	if c.RTRServer != "" {
+		return []string{c.RTRServer}
+	}
+	return nil
 }
 
 // Init initializes a Config with embedded structs prior to calling config.Default

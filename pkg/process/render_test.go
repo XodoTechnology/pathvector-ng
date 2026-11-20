@@ -340,6 +340,43 @@ func TestLoadInvalidCommunityName(t *testing.T) {
 	assert.Error(t, err, "undefined community names are invalid communities")
 }
 
+func TestRenderMultipleRTRServers(t *testing.T) {
+	out := renderConfig(t, `
+asn: 65530
+router-id: 192.0.2.1
+hostname: r1
+rtr-servers: [rtr1.example.net:3323, rtr2.example.net:3323]
+peers:
+  Peer:
+    asn: 64496
+    neighbors: [192.0.2.1]
+`)
+	global := out[""]
+	// BIRD allows one remote per rpki protocol, so each server gets its own
+	// protocol instance feeding the shared rpki4/rpki6 tables
+	assert.Contains(t, global, "protocol rpki rpki_1 {")
+	assert.Contains(t, global, "protocol rpki rpki_2 {")
+	assert.Contains(t, global, `remote "rtr1.example.net" port 3323;`)
+	assert.Contains(t, global, `remote "rtr2.example.net" port 3323;`)
+	assert.Equal(t, 2, strings.Count(global, "protocol rpki "))
+
+	// rtr-server singular still works when rtr-servers is unset, and keeps
+	// the unsuffixed protocol name for backward compatibility
+	out = renderConfig(t, `
+asn: 65530
+router-id: 192.0.2.1
+hostname: r1
+rtr-server: rtr-single.example.net:3323
+peers:
+  Peer:
+    asn: 64496
+    neighbors: [192.0.2.1]
+`)
+	assert.Contains(t, out[""], "protocol rpki {")
+	assert.Contains(t, out[""], `remote "rtr-single.example.net" port 3323;`)
+	assert.NotContains(t, out[""], "rtr.irrd3.net")
+}
+
 func TestRenderGlobalProtocolOverrides(t *testing.T) {
 	out := renderConfig(t, `
 asn: 65530

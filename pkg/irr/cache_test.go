@@ -51,23 +51,23 @@ func TestUpdateWithCacheFallback(t *testing.T) {
 
 	fakeBGPQ4(t, `case "$*" in *-Ab4*) printf 'NN = [\n    192.0.2.0/24\n];\n' ;; *) echo 'NN = [ ];' ;; esac`)
 	c := LoadCache(path)
-	require.NoError(t, UpdateWithCache(newPeer(), "rr.ntt.net", 5, "", c, false))
+	require.NoError(t, UpdateWithCache(newPeer(), []string{"rr.ntt.net"}, 5, "", c, false))
 	require.NoError(t, c.Save())
 
 	fakeBGPQ4(t, "exit 1")
 	p := newPeer()
-	require.NoError(t, UpdateWithCache(p, "rr.ntt.net", 5, "", LoadCache(path), false))
+	require.NoError(t, UpdateWithCache(p, []string{"rr.ntt.net"}, 5, "", LoadCache(path), false))
 	assert.Equal(t, []string{"192.0.2.0/24"}, *p.PrefixSet4)
 
 	// Different bgpq4 arguments are a different query
-	assert.Error(t, UpdateWithCache(newPeer(), "rr.ntt.net", 5, "-S RADB", LoadCache(path), false))
+	assert.Error(t, UpdateWithCache(newPeer(), []string{"rr.ntt.net"}, 5, "-S RADB", LoadCache(path), false))
 	// No cache
-	assert.Error(t, UpdateWithCache(newPeer(), "rr.ntt.net", 5, "", nil, false))
+	assert.Error(t, UpdateWithCache(newPeer(), []string{"rr.ntt.net"}, 5, "", nil, false))
 	// Offline with cache
 	p = newPeer()
-	require.NoError(t, UpdateWithCache(p, "rr.ntt.net", 5, "", LoadCache(path), true))
+	require.NoError(t, UpdateWithCache(p, []string{"rr.ntt.net"}, 5, "", LoadCache(path), true))
 	assert.Equal(t, []string{"192.0.2.0/24"}, *p.PrefixSet4)
 	// Members: offline without cache
-	_, err := ASMembersWithCache("AS-EXAMPLE", "rr.ntt.net", 5, "", LoadCache(path), true)
+	_, err := ASMembersWithCache("AS-EXAMPLE", []string{"rr.ntt.net"}, 5, "", LoadCache(path), true)
 	assert.ErrorIs(t, err, errOffline)
 }

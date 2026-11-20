@@ -328,8 +328,19 @@ func QueryAutNum(server string, asn uint32, queryTimeout uint, bgpqArgs string) 
 // VerifyPolicy checks that the peer's aut-num object imports from and exports to localASN for each address family
 // the peer has sessions in (v4, v6). It returns the missing policy (empty if the policy is complete). An error means
 // the policy couldn't be checked (whois query failure or as-set expansion failure).
-func VerifyPolicy(peerASN, localASN uint32, v4, v6 bool, irrServer string, queryTimeout uint, bgpqArgs string) ([]string, error) {
-	response, err := QueryAutNum(irrServer, peerASN, queryTimeout, bgpqArgs)
+func VerifyPolicy(peerASN, localASN uint32, v4, v6 bool, irrServers []string, queryTimeout uint, bgpqArgs string) ([]string, error) {
+	// Query the aut-num object, falling back across the IRR servers. The
+	// server that answered is reused for as-set expansion below so the whole
+	// check reflects a single IRR database.
+	var response, usedServer string
+	err := forEachServer(irrServers, func(srv string) error {
+		resp, err := QueryAutNum(srv, peerASN, queryTimeout, bgpqArgs)
+		if err != nil {
+			return err
+		}
+		response, usedServer = resp, srv
+		return nil
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -337,8 +348,12 @@ func VerifyPolicy(peerASN, localASN uint32, v4, v6 bool, irrServer string, query
 	if !found {
 		return []string{fmt.Sprintf("aut-num AS%d object (not found)", peerASN)}, nil
 	}
+	expandServers := irrServers
+	if usedServer != "" {
+		expandServers = []string{usedServer}
+	}
 	result, err := CheckPolicy(rules, localASN, func(asSet string) ([]uint32, error) {
-		return ASMembers(asSet, irrServer, queryTimeout, bgpqArgs)
+		return ASMembers(asSet, expandServers, queryTimeout, bgpqArgs)
 	})
 	missing := result.Missing(localASN, v4, v6)
 	if len(missing) > 0 && err != nil {

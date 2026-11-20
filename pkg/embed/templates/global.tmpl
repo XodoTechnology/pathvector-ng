@@ -182,20 +182,26 @@ function process_blackholes() {
 # ---- RPKI ----
 
 {{ if .RPKIEnable }}
+{{$rtrServers := .EffectiveRTREndpoints}}
 roa4 table rpki4;
 roa6 table rpki6;
 
-protocol rpki {
+{{/* BIRD allows only one RTR remote per rpki protocol, so each server gets
+     its own protocol instance; they all feed the shared rpki4/rpki6 tables.
+     A single server keeps the unsuffixed "rpki" protocol name. */}}
+{{ range $i, $ep := $rtrServers }}
+protocol rpki{{ if gt (len $rtrServers) 1 }} rpki_{{ Add $i 1 }}{{ end }} {
   roa4 { table rpki4; };
   roa6 { table rpki6; };
 
   transport tcp;
-  remote "{{ .RTRServerHost }}" port {{ .RTRServerPort }};
+  remote "{{ $ep.Host }}" port {{ $ep.Port }};
 
   retry keep 90;
   refresh keep 900;
   expire keep 172800;
 }
+{{ end }}
 {{ end }}
 
 # ---- Filter Lists ----

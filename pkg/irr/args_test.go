@@ -85,11 +85,11 @@ func TestBuildArgs(t *testing.T) {
 func TestPrefixSetSourceArgs(t *testing.T) {
 	logFile := fakeBGPQ4(t, `printf 'define x = [\n    192.0.2.0/24,\n    198.51.100.0/24\n];\n'`)
 
-	prefixes, err := PrefixSet("RIPE::AS-SERVERFORGE", 4, "rr.ntt.net", 5, "-S RPKI,AFRINIC,ARIN,APNIC,LACNIC,RADB,RIPE")
+	prefixes, err := PrefixSet("RIPE::AS-SERVERFORGE", 4, []string{"rr.ntt.net"}, 5, "-S RPKI,AFRINIC,ARIN,APNIC,LACNIC,RADB,RIPE")
 	require.NoError(t, err)
 	assert.Equal(t, []string{"192.0.2.0/24", "198.51.100.0/24"}, prefixes)
 
-	prefixes, err = PrefixSet("RIPE::AS-SERVERFORGE", 6, "rr.ntt.net", 5, "")
+	prefixes, err = PrefixSet("RIPE::AS-SERVERFORGE", 6, []string{"rr.ntt.net"}, 5, "")
 	require.NoError(t, err)
 	assert.Len(t, prefixes, 2)
 
@@ -102,11 +102,11 @@ func TestPrefixSetSourceArgs(t *testing.T) {
 func TestASMembersSourceArgs(t *testing.T) {
 	logFile := fakeBGPQ4(t, `echo '{"NN": [112, 34553]}'`)
 
-	members, err := ASMembers("RIPE::AS-SERVERFORGE", "rr.ntt.net", 5, "-S RADB,RIPE")
+	members, err := ASMembers("RIPE::AS-SERVERFORGE", []string{"rr.ntt.net"}, 5, "-S RADB,RIPE")
 	require.NoError(t, err)
 	assert.Equal(t, []uint32{112, 34553}, members)
 
-	members, err = ASMembers("RIPE::AS-SERVERFORGE", "rr.ntt.net", 5, "")
+	members, err = ASMembers("RIPE::AS-SERVERFORGE", []string{"rr.ntt.net"}, 5, "")
 	require.NoError(t, err)
 	assert.Equal(t, []uint32{112, 34553}, members)
 

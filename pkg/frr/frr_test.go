@@ -267,6 +267,23 @@ func TestGlobalObjectsRPKI(t *testing.T) {
 	}
 }
 
+func TestGlobalObjectsMultipleRTRCaches(t *testing.T) {
+	c := testConfig(t)
+	c.RTRServerEndpoints = []*config.RTRServerEndpoint{
+		{Host: "rtr1.example.net", Port: 3323},
+		{Host: "rtr2.example.net", Port: 3323},
+	}
+	out := GlobalObjects(c)
+	// Lower preference is preferred in RTRlib, so the first-listed server
+	// gets preference 1 and acts as primary; the rest are failover caches.
+	if !strings.Contains(out, "rpki cache tcp rtr1.example.net 3323 preference 1") {
+		t.Errorf("primary RPKI cache missing:\n%s", out)
+	}
+	if !strings.Contains(out, "rpki cache tcp rtr2.example.net 3323 preference 2") {
+		t.Errorf("failover RPKI cache missing:\n%s", out)
+	}
+}
+
 func TestUnsupportedWarnings(t *testing.T) {
 	c := testConfig(t)
 	p := testPeer(t, []string{"203.0.113.12"}, func(p *config.Peer) {

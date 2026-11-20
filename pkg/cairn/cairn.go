@@ -11,11 +11,13 @@ package cairn
 
 import (
 	"fmt"
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 
 	log "github.com/sirupsen/logrus"
@@ -281,9 +283,11 @@ func GlobalHeader(c *config.Config) string {
 	}
 	fmt.Fprintf(&b, "[metrics]\nlisten = [%q]\nneighbors = true\n\n", metricsListen)
 
-	// RPKI RTR cache.
-	if c.RPKIEnable && c.RTRServer != "" {
-		fmt.Fprintf(&b, "[[rpki.cache]]\naddress = %q\n\n", c.RTRServer)
+	// RPKI RTR caches — one [[rpki.cache]] table per configured server.
+	if c.RPKIEnable {
+		for _, ep := range c.EffectiveRTREndpoints() {
+			fmt.Fprintf(&b, "[[rpki.cache]]\naddress = %q\n\n", net.JoinHostPort(ep.Host, strconv.Itoa(ep.Port)))
+		}
 	}
 
 	// Locally originated prefixes: [[network]] announces them to neighbors.

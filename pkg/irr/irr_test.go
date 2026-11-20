@@ -26,7 +26,7 @@ func TestGetIRRPrefixSet(t *testing.T) {
 		{"AS-LROOT", 6, []string{"2001:500:3::/48", "2001:500:8c::/48", "2001:500:9c::/47{48,48}", "2001:500:9e::/47", "2001:500:9f::/48", "2602:800:9004::/47{48,48}", "2620:0:22b0::/48", "2620:0:2ee0::/48"}, false},
 	}
 	for _, tc := range testCases {
-		out, err := PrefixSet(tc.asSet, tc.family, "rr.ntt.net", irrQueryTimeout, "")
+		out, err := PrefixSet(tc.asSet, tc.family, []string{"rr.ntt.net"}, irrQueryTimeout, "")
 		if err != nil && !tc.shouldError {
 			t.Error(err)
 		} else if err == nil && tc.shouldError {
@@ -60,7 +60,7 @@ func TestBuildIRRPrefixSet(t *testing.T) {
 	}
 	for _, tc := range testCases {
 		peer := config.Peer{ASSet: util.Ptr(tc.asSet)}
-		err := Update(&peer, "rr.ntt.net", irrQueryTimeout, "")
+		err := Update(&peer, []string{"rr.ntt.net"}, irrQueryTimeout, "")
 		if err != nil && tc.shouldError {
 			return
 		}
@@ -84,7 +84,7 @@ func TestIRRASMembers(t *testing.T) {
 		{"", []uint32{}, true}, // Empty as-set
 	}
 	for _, tc := range testCases {
-		members, err := ASMembers(tc.asSet, "rr.ntt.net", irrQueryTimeout, "")
+		members, err := ASMembers(tc.asSet, []string{"rr.ntt.net"}, irrQueryTimeout, "")
 		if tc.shouldError {
 			assert.NotNil(t, err)
 			continue

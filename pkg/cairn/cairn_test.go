@@ -96,6 +96,28 @@ func TestGlobalHeader(t *testing.T) {
 	}
 }
 
+func TestGlobalHeaderMultipleRTRCaches(t *testing.T) {
+	c := testConfig(t)
+	c.RTRServerEndpoints = []*config.RTRServerEndpoint{
+		{Host: "rtr1.example.net", Port: 3323},
+		{Host: "2001:db8::1", Port: 3323},
+	}
+	out := GlobalHeader(c)
+	if !strings.Contains(out, `[[rpki.cache]]`) {
+		t.Fatalf("missing rpki cache table:\n%s", out)
+	}
+	if !strings.Contains(out, `address = "rtr1.example.net:3323"`) {
+		t.Errorf("primary cache address missing:\n%s", out)
+	}
+	// IPv6 hosts are bracketed by net.JoinHostPort
+	if !strings.Contains(out, `address = "[2001:db8::1]:3323"`) {
+		t.Errorf("IPv6 cache address not bracketed:\n%s", out)
+	}
+	if got := strings.Count(out, "[[rpki.cache]]"); got != 2 {
+		t.Errorf("expected 2 rpki.cache tables, got %d", got)
+	}
+}
+
 func TestNeighborBlocksBasic(t *testing.T) {
 	c := testConfig(t)
 	p := testPeer(t, nil)

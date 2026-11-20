@@ -216,23 +216,23 @@ func TestVerifyPolicy(t *testing.T) {
 	fakeBGPQ4(t, `echo '{"NN": [924, 6939]}'`)
 
 	addr, _ := fakeWhois(t, autNumUpstreamsSet)
-	missing, err := VerifyPolicy(207960, 6939, false, true, addr, 5, "")
+	missing, err := VerifyPolicy(207960, 6939, false, true, []string{addr}, 5, "")
 	require.NoError(t, err)
 	assert.Empty(t, missing)
 
-	missing, err = VerifyPolicy(207960, 6939, true, true, addr, 5, "")
+	missing, err = VerifyPolicy(207960, 6939, true, true, []string{addr}, 5, "")
 	require.NoError(t, err)
 	assert.Equal(t, []string{"import from AS6939 accept (IPv4)", "export to AS6939 announce (IPv4)"}, missing)
 
 	// No aut-num object
 	addr, _ = fakeWhois(t, "%  No entries found\n")
-	missing, err = VerifyPolicy(207960, 6939, true, false, addr, 5, "")
+	missing, err = VerifyPolicy(207960, 6939, true, false, []string{addr}, 5, "")
 	require.NoError(t, err)
 	assert.Equal(t, []string{"aut-num AS207960 object (not found)"}, missing)
 
 	// as-set expansion fails: undetermined
 	fakeBGPQ4(t, "exit 1")
 	addr, _ = fakeWhois(t, autNumUpstreamsSet)
-	_, err = VerifyPolicy(207960, 6939, false, true, addr, 5, "")
+	_, err = VerifyPolicy(207960, 6939, false, true, []string{addr}, 5, "")
 	assert.Error(t, err)
 }

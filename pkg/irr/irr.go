@@ -18,6 +18,46 @@ import (
 // bgpq4Command is the bgpq4 executable to run. It is a variable so tests can substitute a fake implementation.
 var bgpq4Command = "bgpq4"
 
+// forEachServer calls fn with each IRR server in order until one returns nil,
+// implementing fallback across the configured irr-servers list. If every
+// server fails, the per-server errors are joined into the returned error.
+// An empty server list results in a single attempt with an empty server
+// (bgpq4's own default behavior).
+func forEachServer(servers []string, fn func(server string) error) error {
+	if len(servers) == 0 {
+		servers = []string{""}
+	}
+	var errs []error
+	for _, srv := range servers {
+		if err := fn(srv); err == nil {
+			return nil
+		} else {
+			log.Debugf("IRR server %q failed: %v", srv, err)
+			errs = append(errs, fmt.Errorf("%s: %w", srv, err))
+		}
+	}
+	return fmt.Errorf("all IRR servers failed: %w", errors.Join(errs...))
+}
+
+// queryServer is forEachServer for functions that return a value: it returns
+// the value produced by the first server whose query succeeds.
+func queryServer[T any](servers []string, fn func(server string) (T, error)) (T, error) {
+	var out T
+	err := forEachServer(servers, func(srv string) error {
+		v, err := fn(srv)
+		if err != nil {
+			return err
+		}
+		out = v
+		return nil
+	})
+	if err != nil {
+		var zero T
+		return zero, err
+	}
+	return out, nil
+}
+
 // bgpq4ArgFlags is the set of bgpq4 single-letter flags that take an argument
 const bgpq4ArgFlags = "FfGHhLlMmRrSW"
 
@@ -85,13 +125,17 @@ func runBGPQ4(args []string, queryTimeout uint) ([]byte, error) {
 	return out, nil
 }
 
-// PrefixSet uses bgpq4 to generate a prefix filter and return only the filter lines
-func PrefixSet(macro string, family uint8, irrServer string, queryTimeout uint, bgpqArgs string) ([]string, error) {
+// PrefixSet uses bgpq4 to generate a prefix filter and return only the filter lines.
+// irrServers is tried in order until one answers.
+func PrefixSet(macro string, family uint8, irrServers []string, queryTimeout uint, bgpqArgs string) ([]string, error) {
 	var prefixes []string
 
 	for _, asSet := range strings.Fields(macro) {
-		// Run bgpq4 for BIRD format with aggregation enabled
-		stdout, err := runBGPQ4(buildArgs(bgpqArgs, asSet, "-h", irrServer, fmt.Sprintf("-Ab%d", family)), queryTimeout)
+		// Run bgpq4 for BIRD format with aggregation enabled, falling back
+		// across the configured IRR servers for each query
+		stdout, err := queryServer(irrServers, func(srv string) ([]byte, error) {
+			return runBGPQ4(buildArgs(bgpqArgs, asSet, "-h", srv, fmt.Sprintf("-Ab%d", family)), queryTimeout)
+		})
 		if err != nil {
 			return nil, err
 		}
@@ -132,13 +176,14 @@ func parseBirdPrefixList(out string) ([]string, error) {
 
 // ASMembersWithCache returns the members of an AS set. If cache is not nil, a successful result is stored in it,
 // and if the live query fails (or offline is true) the members from the last successful query are used instead.
-func ASMembersWithCache(asSet string, irrServer string, queryTimeout uint, bgpqArgs string, cache *Cache, offline bool) ([]uint32, error) {
-	cacheKey := fmt.Sprintf("%s|%s", asSet, strings.Join(strings.Fields(bgpqArgs), " "))
+// irrServers is tried in order until one answers.
+func ASMembersWithCache(asSet string, irrServers []string, queryTimeout uint, bgpqArgs string, cache *Cache, offline bool) ([]uint32, error) {
+	cacheKey := fmt.Sprintf("%s|%s|%s", strings.Join(irrServers, ","), asSet, strings.Join(strings.Fields(bgpqArgs), " "))
 
 	var members []uint32
 	err := errOffline
 	if !offline {
-		members, err = ASMembers(asSet, irrServer, queryTimeout, bgpqArgs)
+		members, err = ASMembers(asSet, irrServers, queryTimeout, bgpqArgs)
 	}
 	if err == nil {
 		cache.storeMembers(cacheKey, members)
@@ -153,9 +198,12 @@ func ASMembersWithCache(asSet string, irrServer string, queryTimeout uint, bgpqA
 	return cached.ASSetMembers, nil
 }
 
-// ASMembers uses bgpq4 to generate an AS member set
-func ASMembers(asSet string, irrServer string, queryTimeout uint, bgpqArgs string) ([]uint32, error) {
-	stdout, err := runBGPQ4(buildArgs(bgpqArgs, asSet, "-h", irrServer, "-tj"), queryTimeout)
+// ASMembers uses bgpq4 to generate an AS member set. irrServers is tried in
+// order until one answers.
+func ASMembers(asSet string, irrServers []string, queryTimeout uint, bgpqArgs string) ([]uint32, error) {
+	stdout, err := queryServer(irrServers, func(srv string) ([]byte, error) {
+		return runBGPQ4(buildArgs(bgpqArgs, asSet, "-h", srv, "-tj"), queryTimeout)
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -169,13 +217,15 @@ func ASMembers(asSet string, irrServer string, queryTimeout uint, bgpqArgs strin
 }
 
 // Update updates a peer's IRR prefix set
-func Update(peerData *config.Peer, irrServer string, queryTimeout uint, bgpqArgs string) error {
-	return UpdateWithCache(peerData, irrServer, queryTimeout, bgpqArgs, nil, false)
+func Update(peerData *config.Peer, irrServers []string, queryTimeout uint, bgpqArgs string) error {
+	return UpdateWithCache(peerData, irrServers, queryTimeout, bgpqArgs, nil, false)
 }
 
 // UpdateWithCache updates a peer's IRR prefix set. If cache is not nil, successful IRR results are stored in it,
 // and if the live IRR query fails (or offline is true) the prefix sets from the last successful query are used instead.
-func UpdateWithCache(peerData *config.Peer, irrServer string, queryTimeout uint, bgpqArgs string, cache *Cache, offline bool) error {
+// irrServers is tried in order until one answers; a single server serves both
+// the IPv4 and IPv6 queries so the result is consistent.
+func UpdateWithCache(peerData *config.Peer, irrServers []string, queryTimeout uint, bgpqArgs string, cache *Cache, offline bool) error {
 	// Check for empty as-set
 	if peerData.ASSet == nil || *peerData.ASSet == "" {
 		return fmt.Errorf("peer has filter-irr enabled and no as-set defined")
@@ -218,24 +268,24 @@ func UpdateWithCache(peerData *config.Peer, irrServer string, queryTimeout uint,
 	}
 
 	// The cache key covers everything that changes the query result — including the IRR
-	// server — so cached data is never used for a different query or a different server.
-	cacheKey := fmt.Sprintf("%s|%s|%s|%s", irrServer, *peerData.ASSet, strings.Join(strings.Fields(bgpqArgs4), " "), strings.Join(strings.Fields(bgpqArgs6), " "))
+	// server list — so cached data is never used for a different query or different servers.
+	cacheKey := fmt.Sprintf("%s|%s|%s|%s", strings.Join(irrServers, ","), *peerData.ASSet, strings.Join(strings.Fields(bgpqArgs4), " "), strings.Join(strings.Fields(bgpqArgs6), " "))
 
 	var prefixesFromIRR4, prefixesFromIRR6 []string
 	err := errOffline
 	if !offline {
-		err = func() error {
+		err = forEachServer(irrServers, func(srv string) error {
 			var err error
-			prefixesFromIRR4, err = PrefixSet(*peerData.ASSet, 4, irrServer, queryTimeout, bgpqArgs4)
+			prefixesFromIRR4, err = PrefixSet(*peerData.ASSet, 4, []string{srv}, queryTimeout, bgpqArgs4)
 			if err != nil {
 				return fmt.Errorf("unable to get IPv4 IRR prefix list from %s: %s", *peerData.ASSet, err)
 			}
-			prefixesFromIRR6, err = PrefixSet(*peerData.ASSet, 6, irrServer, queryTimeout, bgpqArgs6)
+			prefixesFromIRR6, err = PrefixSet(*peerData.ASSet, 6, []string{srv}, queryTimeout, bgpqArgs6)
 			if err != nil {
 				return fmt.Errorf("unable to get IPv6 IRR prefix list from %s: %s", *peerData.ASSet, err)
 			}
 			return nil
-		}()
+		})
 	}
 	if err == nil {
 		cache.storePrefixes(cacheKey, prefixesFromIRR4, prefixesFromIRR6)

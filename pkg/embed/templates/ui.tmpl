@@ -76,8 +76,8 @@
             <td>{{ .ASN }}</td>
             <td>{{ .RouterID }}</td>
             <td>{{ len .Peers }}</td>
-            <td>{{ .IRRServer }}</td>
-            <td>{{ .RTRServer }}</td>
+            <td>{{ range $i, $s := .IRRServerList }}{{ if $i }}<br>{{ end }}{{ $s }}{{ end }}</td>
+            <td>{{ range $i, $e := .EffectiveRTREndpoints }}{{ if $i }}<br>{{ end }}{{ $e.Host }}:{{ $e.Port }}{{ end }}</td>
             <td>
             {{- range $k, $prefix := .Prefixes }}
                 {{ $prefix }}<br>

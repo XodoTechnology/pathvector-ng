@@ -43,6 +43,9 @@ func ProtocolNames() map[string]*Protocol {
 var funcMap = template.FuncMap{
 	"Contains": strings.Contains,
 
+	// Add returns a + b (for 1-based numbering inside template ranges)
+	"Add": func(a, b int) int { return a + b },
+
 	// SliceContains checks if a string slice contains a string
 	"SliceContains": func(slice []string, s string) bool {
 		return util.Contains(slice, s)

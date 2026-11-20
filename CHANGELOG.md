@@ -5,6 +5,16 @@ from `main` once the e2e suite passes; PR titles feed the generated release note
 
 ## Unreleased
 
+- **IRR/RTR server fallback lists** — new `irr-servers` and `rtr-servers`
+  options accept ordered server lists. IRR whois/bgpq4 queries try each
+  server until one answers (a single server serves both address families of
+  a peer's prefix query so results stay consistent, and the answering server
+  is reused for `verify-irr-policy` as-set expansion). RTR redundancy is
+  per-backend: BIRD gets one `protocol rpki` instance per server feeding the
+  shared ROA tables, FRR gets `rpki cache tcp` entries with ascending
+  preference, and Cairn gets one `[[rpki.cache]]` per server. The singular
+  `irr-server`/`rtr-server` options keep working when the lists are unset.
+
 - **Cairn backend (`backend: cairn`)** — Pathvector NG can now render and manage
   [Cairn](https://cairnrouting.org) (`cairnd`) natively: `cairnd.toml` +
   `policy.conf` + `staticd.toml` output, `cairnd --check` validation,
