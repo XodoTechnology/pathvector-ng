@@ -524,6 +524,11 @@ module pathvector {
       default "false";
       description "Reject routes that aren't originated by an ASN within this peer's AS set";
     }
+    leaf filter-irr-origin {
+      type boolean;
+      default "false";
+      description "With filter-irr, also reject routes whose origin ASN isn't in the peer's IRR as-set (requires as-set members, fetched like auto-as-set-members)";
+    }
     leaf filter-aspa {
       type boolean;
       default "false";
@@ -875,12 +880,22 @@ module pathvector {
   leaf irr-server {
     type string;
     default "irr.irrd3.net";
-    description "Internet routing registry server";
+    description "Internet routing registry server (used when irr-servers is empty)";
+  }
+  leaf-list irr-servers {
+    type string;
+    ordered-by user;
+    description "IRR whois servers to query, tried in order until one answers (overrides irr-server when set)";
   }
   leaf rtr-server {
     type string;
     default "rtr.irrd3.net:3233";
-    description "RPKI-to-router server";
+    description "RPKI-to-router server as host:port (used when rtr-servers is empty)";
+  }
+  leaf-list rtr-servers {
+    type string;
+    ordered-by user;
+    description "RPKI RTR servers as host:port, for redundancy (overrides rtr-server when set)";
   }
   leaf bgpq-args {
     type string;
