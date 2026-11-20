@@ -56,6 +56,7 @@ var pdbCmd = &cobra.Command{
 		fmt.Printf("name:          %s\n", d.Name)
 		fmt.Printf("asn:           AS%d\n", d.ASN)
 		fmt.Printf("as-set:        %s\n", d.ASSet)
+		fmt.Printf("info-type:     %s\n", d.InfoType)
 		fmt.Printf("import-limit4: %d\n", d.ImportLimit4)
 		fmt.Printf("import-limit6: %d\n", d.ImportLimit6)
 	},

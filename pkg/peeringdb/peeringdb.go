@@ -57,6 +57,7 @@ type Data struct {
 	Name         string `json:"name"`
 	ASN          uint32 `json:"asn"`
 	ASSet        string `json:"irr_as_set"`
+	InfoType     string `json:"info_type"`
 	ImportLimit4 int    `json:"info_prefixes4"`
 	ImportLimit6 int    `json:"info_prefixes6"`
 }
@@ -164,6 +165,12 @@ func UpdateFromData(peerData *config.Peer, pDbData *Data) {
 		}
 
 		peerData.ASSet = &pDbData.ASSet
+	}
+
+	// PeeringDB info_type classifies the network; Route Servers reflect routes
+	// rather than originate them, which matters for never-via filtering.
+	if pDbData.InfoType == "Route Server" {
+		log.Infof("peer AS%d is a Route Server in PeeringDB — routes through it are reflected, not originated", *peerData.ASN)
 	}
 }
 

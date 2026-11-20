@@ -527,7 +527,7 @@ module pathvector {
     leaf filter-irr-origin {
       type boolean;
       default "false";
-      description "With filter-irr, also reject routes whose origin ASN isn't in the peer's IRR as-set (requires as-set members, fetched like auto-as-set-members)";
+      description "With filter-irr, reject routes whose origin isn't IRR-authorized: on BIRD, per-prefix route-object checks (!g/!6 whois queries for each as-set member, falling back to the as-set origin check on failure or >2048 prefixes); on FRR, origin must be in the peer's IRR as-set; unsupported on Cairn";
     }
     leaf filter-aspa {
       type boolean;
@@ -896,6 +896,10 @@ module pathvector {
     type string;
     ordered-by user;
     description "RPKI RTR servers as host:port, for redundancy (overrides rtr-server when set)";
+  }
+  leaf export-as-set {
+    type string;
+    description "Only announce routes to peers whose ASN is a member of this IRR as-set (resolved via irr-servers; on query failure a warning is shown and peer exports are left unchanged)";
   }
   leaf bgpq-args {
     type string;

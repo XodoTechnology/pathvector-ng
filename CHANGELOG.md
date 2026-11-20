@@ -5,6 +5,22 @@ from `main` once the e2e suite passes; PR titles feed the generated release note
 
 ## Unreleased
 
+- **Per-prefix `filter-irr-origin` on BIRD** — the option now renders
+  per-prefix route-object checks: each as-set member's originated prefixes
+  are queried from the IRR (`!g`/`!6` whois) and every received route must
+  match an IRR-authorized (prefix, origin) pair, deduplicated into shared
+  origin sets. Falls back to the as-set origin check on query failure or
+  when more than 2048 prefixes are covered. FRR keeps the as-set-granularity
+  check; Cairn remains unsupported.
+
+- **`export-as-set` option** — announce routes only to peers whose ASN is a
+  member of the given IRR as-set (resolved via `irr-servers`, cached like
+  other IRR data). Non-member peers keep their import session but get export
+  disabled; on IRR failure exports are left unchanged. Works on all backends.
+
+- **PeeringDB `info_type`** — the `pdb` command shows the network's
+  PeeringDB type, and `UpdateFromData` notes when a peer is a Route Server.
+
 - **New inspect commands** — `pathvector irr as-set NAME` shows an IRR
   as-set's member ASNs and IPv4/IPv6 prefix sets, `pathvector irr aut-num
   ASN` prints the IRR aut-num object, `pathvector pdb ASN` shows PeeringDB

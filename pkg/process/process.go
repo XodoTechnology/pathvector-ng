@@ -993,6 +993,21 @@ func enrichPeer(peerName string, peerData *config.Peer, c *config.Config, offlin
 		peerData.FilterIRROrigin = util.Ptr(false)
 	}
 
+	// filter-irr-origin per-prefix refinement (BIRD only): fetch the prefixes
+	// each as-set member originates from the IRR (!g/!6 queries) so the import
+	// filter can reject routes whose (prefix, origin) pair isn't IRR-authorized.
+	// On failure the coarse as-set origin check still applies.
+	if *peerData.FilterIRROrigin && c.Backend == "bird" && peerData.ASSetMembers != nil && len(*peerData.ASSetMembers) > 0 {
+		origins, err := irr.OriginPrefixes(c.IRRServerList(), *peerData.ASSetMembers, c.IRRQueryTimeout, c.BGPQArgs)
+		if err != nil {
+			log.Warnf("[%s] unable to get IRR route origins for per-prefix filter-irr-origin: %s; falling back to as-set origin check", peerName, err)
+		} else if len(origins) > irrOriginMaxPrefixes {
+			log.Warnf("[%s] IRR route origins cover %d prefixes (max %d); falling back to as-set origin check", peerName, len(origins), irrOriginMaxPrefixes)
+		} else if len(origins) > 0 {
+			peerData.IRRRouteOrigins, peerData.IRRRouteOriginSets = buildIRRRouteOrigins(origins)
+		}
+	}
+
 	if *peerData.VerifyIRRPolicy {
 		verifyIRRPolicy(peerName, peerData, c, offline)
 	}
@@ -1149,6 +1164,8 @@ func Run(configFilename, lockFile, version string, noConfigure, dryRun, withdraw
 		c.NoAnnounce = true
 	}
 
+	resolveExportASSet(c, offline)
+
 	// Iterate over peers — panics inside a worker goroutine are recovered here
 	// and returned as errors; recover() in Run only covers the main goroutine.
 	log.Debug("Processing peers")
@@ -1280,6 +1297,8 @@ func runCairn(configFilename string, c *config.Config, version string, noConfigu
 	if err := os.MkdirAll(c.CacheDirectory, os.FileMode(0755)); err != nil {
 		panic(fmt.Errorf("%v", err))
 	}
+
+	resolveExportASSet(c, offline)
 
 	log.Debug("Processing peers (cairn)")
 	wg := new(sync.WaitGroup)
@@ -1449,6 +1468,8 @@ func runFRR(configFilename string, c *config.Config, version string, noConfigure
 		c.NoAnnounce = true
 	}
 
+	resolveExportASSet(c, offline)
+
 	if err := os.MkdirAll(c.CacheDirectory, os.FileMode(0755)); err != nil {
 		panic(fmt.Errorf("%v", err))
 	}
@@ -1507,4 +1528,76 @@ func runFRR(configFilename string, c *config.Config, version string, noConfigure
 
 	log.Infof("Processed %d sessions over %d peers (backend: frr)", countSessions(c.Peers), len(c.Peers))
 	return nil
+}
+
+// irrOriginMaxPrefixes caps the per-prefix filter-irr-origin rules rendered
+// into a peer's import filter; beyond it the coarse as-set check is used.
+const irrOriginMaxPrefixes = 2048
+
+// buildIRRRouteOrigins converts the prefix -> origin-ASNs map from
+// irr.OriginPrefixes into deduplicated origin sets plus per-prefix entries.
+// Prefixes and sets are sorted for deterministic rendering.
+func buildIRRRouteOrigins(origins map[string]map[uint32]struct{}) ([]config.IRRRouteOrigin, []config.IRROriginSet) {
+	// Group prefixes by identical origin set so shared sets render once.
+	type key string
+	setIndex := make(map[key]int)
+	var sets []config.IRROriginSet
+	prefixes := make([]string, 0, len(origins))
+	for pfx := range origins {
+		prefixes = append(prefixes, pfx)
+	}
+	sort.Strings(prefixes)
+
+	entries := make([]config.IRRRouteOrigin, 0, len(prefixes))
+	for _, pfx := range prefixes {
+		asnSet := origins[pfx]
+		asns := make([]uint32, 0, len(asnSet))
+		for asn := range asnSet {
+			asns = append(asns, asn)
+		}
+		sort.Slice(asns, func(i, j int) bool { return asns[i] < asns[j] })
+		k := key(fmt.Sprint(asns))
+		idx, ok := setIndex[k]
+		if !ok {
+			idx = len(sets)
+			setIndex[k] = idx
+			sets = append(sets, config.IRROriginSet{Suffix: idx, Origins: asns})
+		}
+		entries = append(entries, config.IRRRouteOrigin{Prefix: pfx, SetIndex: idx})
+	}
+	return entries, sets
+}
+
+// resolveExportASSet implements the export-as-set option: peers whose ASN is
+// not a member of the configured IRR as-set get export disabled. Members are
+// resolved once per run via the IRR cache; on query failure a warning is shown
+// and peer exports are left unchanged (matching verify-irr-policy semantics).
+func resolveExportASSet(c *config.Config, offline bool) {
+	if c.ExportASSet == nil || *c.ExportASSet == "" {
+		return
+	}
+	irrCache := irr.LoadCache(irr.CachePath(c.CacheDirectory, 0, *util.Sanitize(*c.ExportASSet)))
+	defer func() {
+		if err := irrCache.Save(); err != nil {
+			log.Warnf("saving IRR cache: %v", err)
+		}
+	}()
+	members, err := irr.ASMembersWithCache(*c.ExportASSet, c.IRRServerList(), c.IRRQueryTimeout, c.BGPQArgs, irrCache, offline)
+	if err != nil {
+		log.Warnf("export-as-set: unable to resolve members of %s: %s; leaving peer exports unchanged", *c.ExportASSet, err)
+		return
+	}
+	memberSet := make(map[uint32]struct{}, len(members))
+	for _, m := range members {
+		memberSet[m] = struct{}{}
+	}
+	for peerName, peerData := range c.Peers {
+		if peerData.ASN == nil {
+			continue
+		}
+		if _, ok := memberSet[uint32(*peerData.ASN)]; !ok {
+			log.Warnf("[%s] AS%d is not in export-as-set %s; disabling export to this peer", peerName, *peerData.ASN, *c.ExportASSet)
+			peerData.Export = util.Ptr(false)
+		}
+	}
 }

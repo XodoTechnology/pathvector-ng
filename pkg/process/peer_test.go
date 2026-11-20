@@ -15,6 +15,7 @@ import (
 	"github.com/XodoTechnology/pathvector-ng/pkg/config"
 	"github.com/XodoTechnology/pathvector-ng/pkg/embed"
 	"github.com/XodoTechnology/pathvector-ng/pkg/templating"
+	"github.com/XodoTechnology/pathvector-ng/pkg/util"
 )
 
 // shimBGPQ4 puts a fake bgpq4 script running body first in PATH for the duration of the test
@@ -288,4 +289,78 @@ func TestPeerFilterIRROrigin(t *testing.T) {
 	assert.Equal(t, []uint32{65510, 65511}, *c.Peers["Origin"].ASSetMembers)
 	assert.Contains(t, out, "AS_SET_MEMBERS = [")
 	assert.Contains(t, out, "bgp_path.last ~ AS65510_")
+}
+
+func TestPeerFilterIRROriginPerPrefix(t *testing.T) {
+	shimBGPQ4(t, fakeBGPQ4Body("    185.121.172.0/24", "", `{"NN": [65003]}`))
+	whois := fakeWhoisServer(t, map[string]string{
+		"!g65003":   "A64\n185.121.172.0/24 185.121.173.0/24\nC\n",
+		"!6AS65003": "D\n",
+	})
+	c := loadTestPeers(t, `
+  Origin:
+    asn: 65003
+    as-set: AS-ORIGIN
+    filter-irr: true
+    filter-irr-origin: true
+    auto-as-set-members: true
+    neighbors: [203.0.113.10]
+`)
+	c.IRRServer = whois
+	out := runPeer(t, c, "Origin")
+
+	// Per-prefix origin sets are deduplicated into defines and checked per prefix
+	assert.Contains(t, out, "define AS65003_ORIGIN_IRR_ORIG_0 = [")
+	assert.Contains(t, out, "if (net ~ 185.121.172.0/24) then { if !(bgp_path.last ~ AS65003_ORIGIN_IRR_ORIG_0) then { _reject(\"IRR origin mismatch\"); } }")
+	assert.Contains(t, out, "if (net ~ 185.121.173.0/24) then")
+	// The coarse as-set check is replaced by the per-prefix check
+	assert.NotContains(t, out, "not in AS set")
+}
+
+func TestPeerFilterIRROriginPerPrefixFallback(t *testing.T) {
+	shimBGPQ4(t, fakeBGPQ4Body("    185.121.172.0/24", "", `{"NN": [65003]}`))
+	// Whois unreachable: per-prefix data unavailable, coarse as-set check remains
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	addr := l.Addr().String()
+	require.NoError(t, l.Close())
+	c := loadTestPeers(t, `
+  Origin:
+    asn: 65003
+    as-set: AS-ORIGIN
+    filter-irr: true
+    filter-irr-origin: true
+    auto-as-set-members: true
+    neighbors: [203.0.113.10]
+`)
+	c.IRRServer = addr
+	out := runPeer(t, c, "Origin")
+	assert.Contains(t, out, "not in AS set")
+	assert.NotContains(t, out, "IRR origin mismatch")
+}
+
+func TestResolveExportASSet(t *testing.T) {
+	shimBGPQ4(t, `case "$*" in *-tj*) echo '{"NN": [65003]}' ;; *) echo '{"NN": []}' ;; esac`)
+	c := loadTestPeers(t, `
+  Member:
+    asn: 65003
+    neighbors: [203.0.113.10]
+  Outsider:
+    asn: 65510
+    neighbors: [203.0.113.11]
+`)
+	c.ExportASSet = util.Ptr("AS-EXPORT")
+	resolveExportASSet(c, false)
+	assert.True(t, *c.Peers["Member"].Export)
+	assert.False(t, *c.Peers["Outsider"].Export)
+}
+
+func TestResolveExportASSetUnset(t *testing.T) {
+	c := loadTestPeers(t, `
+  Peer:
+    asn: 65003
+    neighbors: [203.0.113.10]
+`)
+	resolveExportASSet(c, false)
+	assert.True(t, *c.Peers["Peer"].Export)
 }

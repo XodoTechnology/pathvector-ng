@@ -206,7 +206,7 @@ type Peer struct {
 	FilterPrefixLength         *bool `yaml:"filter-prefix-length" description:"Should too large/small prefixes (IPv4 8 > len > 24 and IPv6 12 > len > 48) be rejected?" default:"true"`
 	FilterNeverViaRouteServers *bool `yaml:"filter-never-via-route-servers" description:"Should routes containing an ASN reported in PeeringDB to never be reachable via route servers be filtered?" default:"false"`
 	FilterASSet                *bool `yaml:"filter-as-set" description:"Reject routes that aren't originated by an ASN within this peer's AS set" default:"false"`
-	FilterIRROrigin            *bool `yaml:"filter-irr-origin" description:"With filter-irr, also reject routes whose origin ASN isn't in the peer's IRR as-set (requires as-set members, fetched like auto-as-set-members)" default:"false"`
+	FilterIRROrigin            *bool `yaml:"filter-irr-origin" description:"With filter-irr, reject routes whose origin isn't IRR-authorized: on BIRD, per-prefix route-object checks (!g/!6 whois queries for each as-set member, falling back to the as-set origin check on failure or >2048 prefixes); on FRR, origin must be in the peer's IRR as-set; unsupported on Cairn" default:"false"`
 	FilterASPA                 *bool `yaml:"filter-aspa" description:"Reject routes that aren't originated by an ASN within the authorized-providers map" default:"false"`
 	FilterBlocklist            *bool `yaml:"filter-blocklist" description:"Reject ASNs, prefixes, and IPs in the global blocklist" default:"true"`
 
@@ -229,6 +229,11 @@ type Peer struct {
 
 	Prefixes     *[]string `yaml:"prefixes" description:"Prefixes to accept" default:"-"`
 	ASSetMembers *[]uint32 `yaml:"as-set-members" description:"AS set members (For filter-as-set)" default:"-"`
+
+	// Computed at generate time for filter-irr-origin (BIRD backend): IRR
+	// route data gives, per prefix, the member ASNs allowed to originate it.
+	IRRRouteOrigins    []IRRRouteOrigin `yaml:"-" description:"-" default:"-"`
+	IRRRouteOriginSets []IRROriginSet   `yaml:"-" description:"-" default:"-"`
 
 	Role         *string `yaml:"role" description:"RFC 9234 Local BGP role" default:"-"`
 	RequireRoles *bool   `yaml:"require-roles" description:"Require RFC 9234 BGP roles" default:"false"`
@@ -410,6 +415,7 @@ type Config struct {
 	IRRServers    []string `yaml:"irr-servers" description:"IRR whois servers to query, tried in order until one answers (overrides irr-server when set)" default:"-"`
 	RTRServer     string   `yaml:"rtr-server" description:"RPKI-to-router server as host:port (used when rtr-servers is empty)" default:"rtr.irrd3.net:3233"`
 	RTRServers    []string `yaml:"rtr-servers" description:"RPKI RTR servers as host:port, for redundancy (overrides rtr-server when set)" default:"-"`
+	ExportASSet   *string  `yaml:"export-as-set" description:"Only announce routes to peers whose ASN is a member of this IRR as-set (resolved via irr-servers; on query failure a warning is shown and peer exports are left unchanged)" default:"-"`
 	BGPQArgs      string   `yaml:"bgpq-args" description:"Additional command line arguments to pass to bgpq4" default:""`
 	KeepFiltered  bool     `yaml:"keep-filtered" description:"Should filtered routes be kept in memory?" default:"false"`
 	MergePaths    bool     `yaml:"merge-paths" description:"Should best and equivalent non-best routes be imported to build ECMP routes?" default:"false"`
@@ -456,6 +462,21 @@ type Config struct {
 	ImportLargeCommunities    []string             `yaml:"-" description:"-" default:"-"`
 	ExportStandardCommunities []string             `yaml:"-" description:"-" default:"-"`
 	ExportLargeCommunities    []string             `yaml:"-" description:"-" default:"-"`
+}
+
+// IRRRouteOrigin is one IRR-authorized (prefix -> origin ASNs) entry used by
+// filter-irr-origin's per-prefix check. SetIndex refers into IRRRouteOriginSets.
+type IRRRouteOrigin struct {
+	Prefix   string
+	SetIndex int
+}
+
+// IRROriginSet is a deduplicated set of origin ASNs shared by one or more
+// IRRRouteOrigin entries. Suffix is appended to the peer's protocol name to
+// form the BIRD define name.
+type IRROriginSet struct {
+	Suffix  int
+	Origins []uint32
 }
 
 // RTRServerEndpoint is a parsed RPKI RTR server (host + port)
