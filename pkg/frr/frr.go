@@ -2046,7 +2046,7 @@ const (
 
 // frrVersionRegex matches the version in vtysh's help banner, e.g.
 // "Integrated shell for FRR (version 10.2.6)."
-var frrVersionRegex = regexp.MustCompile(`(?i)version\s+v?(\d+\.\d+\.\d+)`)
+var frrVersionRegex = regexp.MustCompile(`(?i)version\s+v?(\d+\.\d+(?:\.\d+)?)`)
 
 // DaemonVersion reports the installed FRR version by parsing vtysh's help
 // banner. It uses the configured vtysh binary and does not require the
