@@ -5,6 +5,11 @@ from `main` once the e2e suite passes; PR titles feed the generated release note
 
 ## Unreleased
 
+- **`pathvector visibility`** — queries RIPEstat for each originated prefix
+  and reports BGP visibility across RIS peers plus the origin ASNs currently
+  announcing it. Prefixes originated by other ASNs are flagged as possible
+  hijacks or missing announcements.
+
 - **YAML `include` directive** — split large configurations across files.
   `include:` accepts a filename or list, resolved relative to the including
   file; mapping keys merge recursively while scalars/lists are replaced,

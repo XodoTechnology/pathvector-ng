@@ -28,6 +28,7 @@ Available Commands:
   pdb         Show PeeringDB data for an ASN
   restart     Restart BIRD protocols
   status      Show protocol status
+  visibility  Check originated prefixes against RIPEstat routing visibility
   version     Show version information
   yang        Print YANG model of the configuration
 
