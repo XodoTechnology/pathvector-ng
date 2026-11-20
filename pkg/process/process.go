@@ -8,6 +8,7 @@ import (
 	"net"
 	"os"
 	"path"
+	"path/filepath"
 	"reflect"
 	"regexp"
 	"sort"
@@ -320,6 +321,20 @@ func addUnknownFieldHints(errMsg string) string {
 // and return it as a normal error instead of exiting the process.
 func fatalf(format string, args ...any) {
 	panic(fmt.Errorf(format, args...))
+}
+
+// LoadFile reads a YAML configuration file, expands any `include:` directives
+// relative to the file's directory, and loads the result.
+func LoadFile(path string) (*config.Config, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("reading config file: %w", err)
+	}
+	expanded, err := config.ExpandIncludes(data, filepath.Dir(path))
+	if err != nil {
+		return nil, err
+	}
+	return Load(expanded)
 }
 
 func Load(configBlob []byte) (out *config.Config, retErr error) {
@@ -1086,11 +1101,7 @@ func Run(configFilename, lockFile, version string, noConfigure, dryRun, withdraw
 
 	// Load the config file from config file
 	log.Debugf("Loading config from %s", configFilename)
-	configFile, err := os.ReadFile(configFilename)
-	if err != nil {
-		fatalf("Reading config file: %s", err)
-	}
-	c, err := Load(configFile)
+	c, err := LoadFile(configFilename)
 	if err != nil {
 		panic(fmt.Errorf("%v", err))
 	}

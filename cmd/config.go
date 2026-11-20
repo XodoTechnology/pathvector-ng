@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"time"
@@ -13,6 +14,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 
+	configpkg "github.com/XodoTechnology/pathvector-ng/pkg/config"
 	"github.com/XodoTechnology/pathvector-ng/pkg/process"
 )
 
@@ -46,6 +48,11 @@ var configCmd = &cobra.Command{
 		cf, err := os.ReadFile(configFile)
 		if err != nil {
 			log.Fatalf("Reading config file: %s", err)
+		}
+		// Export the effective config: expand includes so the output reflects
+		// what will actually be loaded.
+		if expanded, err := configpkg.ExpandIncludes(cf, filepath.Dir(configFile)); err == nil {
+			cf = expanded
 		}
 		config := string(cf)
 

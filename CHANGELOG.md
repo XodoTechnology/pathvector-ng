@@ -5,6 +5,13 @@ from `main` once the e2e suite passes; PR titles feed the generated release note
 
 ## Unreleased
 
+- **YAML `include` directive** — split large configurations across files.
+  `include:` accepts a filename or list, resolved relative to the including
+  file; mapping keys merge recursively while scalars/lists are replaced,
+  later includes override earlier ones, and the main file wins overall.
+  Works everywhere the config file is loaded (`generate`, `check`, `status`,
+  etc.); `pathvector config` exports the merged result.
+
 - **`pathvector audit`** — checks every originated prefix (top-level
   `prefixes` and `kernel.statics`) against the IRR route objects for the
   local ASN, reporting authorized, covered-by-parent-object, and missing

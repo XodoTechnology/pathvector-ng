@@ -4,6 +4,29 @@ sidebar_position: 3
 ---
 
 # Configuration
+
+## Splitting configuration with `include`
+
+Large deployments can split the YAML configuration across multiple files with
+the top-level `include` directive, which accepts a filename or a list of
+filenames resolved relative to the including file:
+
+```yaml
+# /etc/pathvector/main.yml
+include:
+  - common.yml
+  - peers/transit.yml
+  - peers/customers.yml
+
+hostname: edge-router-1
+```
+
+Included files may themselves contain `include` directives. Merge semantics:
+mapping keys (such as `peers` or `kernel.statics`) merge recursively, scalars
+and lists are replaced wholesale, later includes override earlier ones, and
+the including file's own keys take precedence over everything it includes.
+Circular includes and missing files are reported as errors.
+
 ## Config
 ### `peeringdb-query-timeout`
 

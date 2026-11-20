@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"fmt"
-	"os"
 	"reflect"
 
 	log "github.com/sirupsen/logrus"
@@ -64,11 +63,7 @@ var versionCmd = &cobra.Command{
 		printVersionBanner()
 
 		log.Debugf("Loading config from %s", configFile)
-		configFile, err := os.ReadFile(configFile)
-		if err != nil {
-			log.Fatalf("Reading config file: %s", err)
-		}
-		c, err := process.Load(configFile)
+		c, err := process.LoadFile(configFile)
 		if err != nil {
 			log.Fatal(err)
 		}
