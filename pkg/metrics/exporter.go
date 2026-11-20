@@ -68,6 +68,22 @@ func Handler(socketPath string) http.Handler {
 			}
 		}
 
+		// ROA counts from the RPKI tables — signals whether RTR validation is
+		// actually receiving data. Queried per scrape; failures are omitted
+		// rather than failing the whole export.
+		b.WriteString("# HELP pathvector_rpki_roas Number of ROAs in the RPKI table.\n")
+		b.WriteString("# TYPE pathvector_rpki_roas gauge\n")
+		for _, table := range []string{"rpki4", "rpki6"} {
+			resp, _, _, err := bird.RunCommand("show route table "+table+" count", socketPath)
+			if err != nil {
+				continue
+			}
+			var routes, filtered, networks int
+			if _, err := fmt.Sscanf(resp, "%d of %d routes for %d networks", &routes, &filtered, &networks); err == nil {
+				fmt.Fprintf(&b, "pathvector_rpki_roas{table=%q} %d\n", table, networks)
+			}
+		}
+
 		fmt.Fprint(w, b.String())
 	})
 }

@@ -10,6 +10,7 @@ Usage:
   pathvector [command]
 
 Available Commands:
+  audit       Audit originated prefixes against IRR route objects
   birdsh      Lightweight BIRD shell
   check       Validate configuration: render and daemon-validate without applying
   compat      Check the routing daemon's version against the tested range

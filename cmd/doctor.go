@@ -6,6 +6,7 @@ import (
 	"net"
 	"net/http"
 	"os/exec"
+	"strings"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -40,6 +41,7 @@ var doctorCmd = &cobra.Command{
 		results = append(results, doctorIRR(c)...)
 		results = append(results, doctorRTR(c)...)
 		results = append(results, doctorPeeringDB(c)...)
+		results = append(results, doctorROAs(c)...)
 
 		failed := 0
 		for _, r := range results {
@@ -133,6 +135,32 @@ func doctorRTR(c *config.Config) []doctorResult {
 		}
 		conn.Close()
 		out = append(out, doctorResult{Name: fmt.Sprintf("rtr[%d]", i), Status: "ok", Detail: addr})
+	}
+	return out
+}
+
+// doctorROAs reports the ROA counts in BIRD's rpki4/rpki6 tables — the signal
+// that RPKI validation is actually receiving data, not just that the RTR
+// sockets are reachable. Informational only: 0 ROAs is not a failure (caches
+// may still be syncing or legitimately empty).
+func doctorROAs(c *config.Config) []doctorResult {
+	if c.Backend != "bird" || !c.RPKIEnable {
+		return nil
+	}
+	var out []doctorResult
+	for _, table := range []string{"rpki4", "rpki6"} {
+		resp, _, _, err := bird.RunCommand(fmt.Sprintf("show route table %s count", table), c.BIRDSocket)
+		if err != nil {
+			out = append(out, doctorResult{Name: "rpki-" + table, Status: "warn", Detail: fmt.Sprintf("query failed: %s", err)})
+			continue
+		}
+		// Output looks like: "123 of 456 routes for 789 networks in table rpki4"
+		var routes, filtered, networks int
+		if _, err := fmt.Sscanf(resp, "%d of %d routes for %d networks", &routes, &filtered, &networks); err != nil {
+			out = append(out, doctorResult{Name: "rpki-" + table, Status: "warn", Detail: fmt.Sprintf("unparsed reply: %q", strings.TrimSpace(resp))})
+			continue
+		}
+		out = append(out, doctorResult{Name: "rpki-" + table, Status: "ok", Detail: fmt.Sprintf("%d ROAs (%d routes)", networks, routes)})
 	}
 	return out
 }

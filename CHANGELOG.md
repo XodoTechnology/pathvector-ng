@@ -5,6 +5,16 @@ from `main` once the e2e suite passes; PR titles feed the generated release note
 
 ## Unreleased
 
+- **`pathvector audit`** — checks every originated prefix (top-level
+  `prefixes` and `kernel.statics`) against the IRR route objects for the
+  local ASN, reporting authorized, covered-by-parent-object, and missing
+  prefixes. Exits non-zero when any originated prefix lacks an IRR route
+  object — the most common cause of routes dropped by peers' IRR filters.
+
+- **RPKI visibility** — `pathvector doctor` now reports ROA counts from
+  BIRD's `rpki4`/`rpki6` tables, and the BIRD metrics exporter emits a
+  `pathvector_rpki_roas` gauge so stale or empty RTR caches are visible.
+
 - **Per-prefix `filter-irr-origin` on BIRD** — the option now renders
   per-prefix route-object checks: each as-set member's originated prefixes
   are queried from the IRR (`!g`/`!6` whois) and every received route must
